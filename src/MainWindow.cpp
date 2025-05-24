@@ -10,16 +10,8 @@
 #pragma comment(lib, "Dwmapi.lib")
 
 MainWindow::MainWindow(QWidget* parent) : QWidget(parent) {
-    setAttribute(Qt::WA_TranslucentBackground);
     setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowMinMaxButtonsHint);
-
     resize(sizeScale(800), sizeScale(600));
-
-    HWND hwnd = reinterpret_cast<HWND>(winId());
-    LONG style = GetWindowLong(hwnd, GWL_STYLE);
-    style |= WS_THICKFRAME;
-    style &= ~WS_CAPTION;
-    SetWindowLong(hwnd, GWL_STYLE, style);
 }
 
 bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* result) {
@@ -39,7 +31,6 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* r
     case WM_NCCALCSIZE: {
         if (msg->wParam == TRUE) {
             if (windowState().testFlag(Qt::WindowMaximized)) {
-                // 仅最大化时修改
                 NCCALCSIZE_PARAMS* params = reinterpret_cast<NCCALCSIZE_PARAMS*>(msg->lParam);
                 const int frameX = GetSystemMetrics(SM_CXFRAME);
                 const int frameY = GetSystemMetrics(SM_CYFRAME);
@@ -118,7 +109,6 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* r
     case WM_GETMINMAXINFO: {
         MINMAXINFO* mmi = reinterpret_cast<MINMAXINFO*>(msg->lParam);
 
-        // 获取主显示器工作区
         RECT primaryWorkArea;
         SystemParametersInfo(SPI_GETWORKAREA, 0, &primaryWorkArea, 0);
 
