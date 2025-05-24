@@ -11,6 +11,7 @@
 
 MainWindow::MainWindow(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowMinMaxButtonsHint);
+    setAttribute(Qt::WA_TranslucentBackground);
     resize(sizeScale(800), sizeScale(600));
 }
 
@@ -143,5 +144,8 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* r
 void MainWindow::paintEvent(QPaintEvent* event) {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
-    painter.fillRect(rect(), QColor(40, 40, 40, 200)); // 半透明灰色背景
+    QPainterPath path;
+    path.addRoundedRect(rect(), sizeScale(4), sizeScale(4)); // 绘制圆角矩形，圆角半径为10
+    painter.setClipPath(path);                               // 设置绘制区域为圆角路径
+    painter.fillRect(rect(), QColor(40, 40, 40, 255));       // 半透明灰色背景
 }
