@@ -1,4 +1,4 @@
-#include "Constant.h"
+﻿#include "Constant.h"
 
 #include <QGuiApplication>
 #include <QScreen>
@@ -16,7 +16,7 @@ void initResizeRate() {
         setResizeRate(1.0);
         return;
     }
-    qreal dpi = screen->logicalDotsPerInch(); // or physicalDotsPerInch()
+    qreal dpi = screen->logicalDotsPerInch();
 
     if (dpi >= 240)
         setResizeRate(2.0);

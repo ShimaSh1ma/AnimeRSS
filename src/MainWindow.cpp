@@ -1,151 +1,172 @@
-#include "MainWindow.h"
+﻿#include "MainWindow.h"
+#include "Codec.h"
 #include "Constant.h"
+#include <QDebug>
 #include <QEvent>
 #include <QPainter>
 #include <QTimer>
+#include <ShellScalingAPI.h>
 #include <dwmapi.h>
 #include <windows.h>
 #include <windowsx.h>
 
 #pragma comment(lib, "Dwmapi.lib")
+#pragma comment(lib, "Shcore.lib")
 
 MainWindow::MainWindow(QWidget* parent) : QWidget(parent) {
-    setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowMinMaxButtonsHint);
-    setAttribute(Qt::WA_TranslucentBackground);
     resize(sizeScale(800), sizeScale(600));
+
+    QString imagePath = QString::fromLocal8Bit("D:/照片/动漫截图/时光流逝，饭菜依旧美味/无标题.png");
+    image.load(imagePath);
+    pix = pix.fromImage(image);
+    temp = pix;
+    temp = pix.scaled(this->size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+
+    MainWindow::initUI();
 }
 
 bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* result) {
     MSG* msg = static_cast<MSG*>(message);
 
-    WId wid = effectiveWinId();
-    if (!wid) {
-        return false;
-    }
-
-    HWND hWnd = reinterpret_cast<HWND>(wid);
-    if (!IsWindow(hWnd)) {
-        return false;
-    }
-
     switch (msg->message) {
-    case WM_NCCALCSIZE: {
-        if (msg->wParam == TRUE) {
-            if (windowState().testFlag(Qt::WindowMaximized)) {
-                NCCALCSIZE_PARAMS* params = reinterpret_cast<NCCALCSIZE_PARAMS*>(msg->lParam);
-                const int frameX = GetSystemMetrics(SM_CXFRAME);
-                const int frameY = GetSystemMetrics(SM_CYFRAME);
-                const int padding = GetSystemMetrics(SM_CXPADDEDBORDER);
+    case WM_NCCALCSIZE:
+        if (msg->wParam) {
+            *result = 0;
+            return true; // Remove default window frame
+        }
+        break;
 
-                params->rgrc[0].left += frameX + padding;
-                params->rgrc[0].top += frameY + padding;
-                params->rgrc[0].right -= frameX + padding;
-                params->rgrc[0].bottom -= frameY + padding;
+    case WM_NCHITTEST: {
+        const LONG borderWidth = 8;
+        RECT winRect;
+        GetWindowRect(reinterpret_cast<HWND>(winId()), &winRect);
 
-                *result = 0;
-                return true;
+        const LONG x = GET_X_LPARAM(msg->lParam);
+        const LONG y = GET_Y_LPARAM(msg->lParam);
+
+        // 转换鼠标位置到窗口坐标系
+        QPoint localPos = mapFromGlobal(QPoint(x, y));
+
+        // 判断是否在 TitleBar 区域
+        if (localPos.y() < _titleBarHeight) {
+            // 判断是否在按钮区域
+            if (titleBar) {
+                QRect minimizeButtonRect = titleBar->getMinimizeButtonRect();
+                QRect closeButtonRect = titleBar->getCloseButtonRect();
+
+                if (minimizeButtonRect.contains(localPos) || closeButtonRect.contains(localPos)) {
+                    *result = HTCLIENT; // 鼠标在按钮区域，事件传递到按钮
+                    return true;
+                }
+            }
+
+            *result = HTCAPTION; // 鼠标在 TitleBar 的非按钮区域，允许拖动或双击缩放
+            return true;
+        }
+
+        // 处理窗口边框的拖动逻辑
+        if (x >= winRect.left && x < winRect.left + borderWidth) {
+            if (y >= winRect.top && y < winRect.top + borderWidth) {
+                *result = HTTOPLEFT;
+            } else if (y >= winRect.bottom - borderWidth && y < winRect.bottom) {
+                *result = HTBOTTOMLEFT;
+            } else {
+                *result = HTLEFT;
+            }
+        } else if (x >= winRect.right - borderWidth && x < winRect.right) {
+            if (y >= winRect.top && y < winRect.top + borderWidth) {
+                *result = HTTOPRIGHT;
+            } else if (y >= winRect.bottom - borderWidth && y < winRect.bottom) {
+                *result = HTBOTTOMRIGHT;
+            } else {
+                *result = HTRIGHT;
+            }
+        } else if (y >= winRect.top && y < winRect.top + borderWidth) {
+            *result = HTTOP;
+        } else if (y >= winRect.bottom - borderWidth && y < winRect.bottom) {
+            *result = HTBOTTOM;
+        } else {
+            *result = HTCLIENT; // 其他区域返回 HTCLIENT
+        }
+        return true;
+    }
+
+    case WM_LBUTTONDBLCLK: {
+        QPoint globalPos = QCursor::pos();
+
+        QPoint localPos = mapFromGlobal(globalPos);
+
+        if (localPos.y() < _titleBarHeight) {
+            if (titleBar) {
+                QRect minimizeButtonRect = titleBar->getMinimizeButtonRect();
+                QRect closeButtonRect = titleBar->getCloseButtonRect();
+
+                if (!minimizeButtonRect.contains(localPos) && !closeButtonRect.contains(localPos)) {
+                    if (IsZoomed(reinterpret_cast<HWND>(winId()))) {
+                        ShowWindow(reinterpret_cast<HWND>(winId()), SW_RESTORE);
+                    } else {
+                        ShowWindow(reinterpret_cast<HWND>(winId()), SW_MAXIMIZE);
+                    }
+                    return true;
+                }
             }
         }
         return false;
     }
-
-    case WM_NCHITTEST: {
-        RECT winrect;
-        GetWindowRect(hWnd, &winrect);
-        const POINT pt = {GET_X_LPARAM(msg->lParam), GET_Y_LPARAM(msg->lParam)};
-
-        const int resizeBorderX = GetSystemMetrics(SM_CXFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
-        const int resizeBorderY = GetSystemMetrics(SM_CYFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
-
-        bool onLeft = pt.x >= winrect.left && pt.x < winrect.left + resizeBorderX;
-        bool onRight = pt.x <= winrect.right && pt.x > winrect.right - resizeBorderX;
-        bool onTop = pt.y >= winrect.top && pt.y < winrect.top + resizeBorderY;
-        bool onBottom = pt.y <= winrect.bottom && pt.y > winrect.bottom - resizeBorderY;
-
-        // 角部检测
-        if (onTop && onLeft) {
-            *result = HTTOPLEFT;
-            return true;
-        }
-        if (onTop && onRight) {
-            *result = HTTOPRIGHT;
-            return true;
-        }
-        if (onBottom && onLeft) {
-            *result = HTBOTTOMLEFT;
-            return true;
-        }
-        if (onBottom && onRight) {
-            *result = HTBOTTOMRIGHT;
-            return true;
-        }
-
-        // 边部检测
-        if (onLeft) {
-            *result = HTLEFT;
-            return true;
-        }
-        if (onRight) {
-            *result = HTRIGHT;
-            return true;
-        }
-        if (onTop) {
-            *result = HTTOP;
-            return true;
-        }
-        if (onBottom) {
-            *result = HTBOTTOM;
-            return true;
-        }
-
-        QPoint localPos = mapFromGlobal(QPoint(pt.x, pt.y));
-        QRect titleBarRect(0, 0, width(), sizeScale(40));
-        if (titleBarRect.contains(localPos)) {
-            *result = HTCAPTION;
-            return true;
-        }
-        break;
-    }
-
-    case WM_GETMINMAXINFO: {
-        MINMAXINFO* mmi = reinterpret_cast<MINMAXINFO*>(msg->lParam);
-
-        RECT primaryWorkArea;
-        SystemParametersInfo(SPI_GETWORKAREA, 0, &primaryWorkArea, 0);
-
-        mmi->ptMaxPosition.x = -GetSystemMetrics(SM_CXFRAME);
-        mmi->ptMaxPosition.y = -GetSystemMetrics(SM_CYFRAME);
-        mmi->ptMaxSize.x = primaryWorkArea.right - primaryWorkArea.left + 2 * GetSystemMetrics(SM_CXFRAME);
-        mmi->ptMaxSize.y = primaryWorkArea.bottom - primaryWorkArea.top + 2 * GetSystemMetrics(SM_CYFRAME);
-
-        // 最小尺寸设置
-        mmi->ptMinTrackSize.x = sizeScale(400);
-        mmi->ptMinTrackSize.y = sizeScale(300);
-
-        *result = 0;
-        return true;
-    }
-
-    case WM_DPICHANGED: {
-        const RECT* rect = reinterpret_cast<RECT*>(msg->lParam);
-        SetWindowPos(hWnd, nullptr, rect->left, rect->top, rect->right - rect->left, rect->bottom - rect->top,
-                     SWP_NOZORDER | SWP_NOACTIVATE);
-        *result = 0;
-        return true;
-    }
-
-    default:
-        break;
     }
 
     return QWidget::nativeEvent(eventType, message, result);
 }
 
-void MainWindow::paintEvent(QPaintEvent* event) {
+void MainWindow::stretchImage() {
+    if (!pix.isNull()) {
+        // 保持横纵比缩放图片适应窗口大小
+        temp = pix.scaled(this->size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+
+        this->imageWidth = temp.width();
+        this->imageHeight = temp.height();
+        wWidth = this->width();
+        wHeight = this->height();
+        xpos = -(((this->imageWidth - this->width()) / 2 + (temp.width() - this->wWidth) / 2)) / 2;
+        ypos = -(((this->imageHeight - this->height()) / 2 + (temp.height() - this->wHeight) / 2)) / 2;
+    }
+}
+
+void MainWindow::paintEvent(QPaintEvent* paintE) {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
-    QPainterPath path;
-    path.addRoundedRect(rect(), sizeScale(4), sizeScale(4)); // 绘制圆角矩形，圆角半径为10
-    painter.setClipPath(path);                               // 设置绘制区域为圆角路径
-    painter.fillRect(rect(), QColor(40, 40, 40, 255));       // 半透明灰色背景
+    painter.drawPixmap(xpos, ypos, temp);
+
+    QRect titleBarRect(0, 0, width(), height());
+    QLinearGradient topGradient(titleBarRect.topLeft(), titleBarRect.bottomLeft());
+    topGradient.setColorAt(0, QColor(255, 255, 255, 255));
+    topGradient.setColorAt(1, QColor(255, 255, 255, 0));
+    painter.fillRect(titleBarRect, topGradient);
+
+    QRadialGradient edgeGradient(rect().center(), qMax(width(), height()) / 1.5, rect().center());
+    edgeGradient.setColorAt(0, QColor(255, 255, 255, 0));
+    edgeGradient.setColorAt(0.8, QColor(255, 255, 255, 50));
+    edgeGradient.setColorAt(1, QColor(255, 255, 255, 150));
+    painter.fillRect(rect(), edgeGradient);
+}
+
+void MainWindow::resizeEvent(QResizeEvent* event) {
+    this->stretchImage();
+}
+
+void MainWindow::initUI() {
+    mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(0);
+    mainLayout->setAlignment(Qt::AlignTop);
+
+    initTitleBar();
+
+    setLayout(mainLayout);
+}
+
+void MainWindow::initTitleBar() {
+    titleBar = new TitleBar(this);
+    titleBar->setFixedHeight(_titleBarHeight);
+    mainLayout->addWidget(titleBar);
 }

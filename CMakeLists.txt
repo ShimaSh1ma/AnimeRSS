@@ -36,7 +36,7 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
 #添加资源文件
-# qt5_add_resources(RESOURCES resource/resource.qrc)
+qt5_add_resources(RESOURCES resources/resources.qrc)
 
 if(APPLE)
     set(MACOSX_BUNDLE_ICON_FILE main.icns)

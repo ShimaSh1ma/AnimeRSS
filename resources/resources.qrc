@@ -1,0 +1,8 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file alias="close_normal">icon/close_black.png</file>
+        <file alias="close_hover">icon/close_white.png</file>
+        <file alias="minimize_normal">icon/minimize-black.png</file>
+        <file alias="minimize_hover">icon/minimize-white.png</file>
+    </qresource>
+</RCC>
