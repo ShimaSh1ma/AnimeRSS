@@ -1,4 +1,6 @@
-﻿#include <QTextCodec>
+#pragma once
+
+#include <QTextCodec>
 #include <string>
 #include <windows.h>
 

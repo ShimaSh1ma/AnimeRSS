@@ -1,4 +1,4 @@
-﻿#include "Iconbutton.h"
+#include "Iconbutton.h"
 #include "Constant.h"
 #include <QDebug>
 #include <QEvent>

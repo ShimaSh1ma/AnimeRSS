@@ -1,4 +1,4 @@
-﻿#include "Constant.h"
+#include "Constant.h"
 
 #include <QGuiApplication>
 #include <QScreen>

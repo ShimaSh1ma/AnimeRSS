@@ -1,12 +1,14 @@
-﻿#include "TitleBar.h"
+#include "TitleBar.h"
+#include "Constant.h"
 #include "IconButton.h"
+#include <QApplication>
 #include <QHBoxLayout>
 
 TitleBar::TitleBar(QWidget* parent) : QWidget(parent) {
-    setAttribute(Qt::WA_TransparentForMouseEvents, false); // 确保 TitleBar 接收鼠标事件
+    setAttribute(Qt::WA_TransparentForMouseEvents, false);
     layout = new QHBoxLayout(this);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
+    layout->setContentsMargins(0, _borderWidth, _borderWidth, 0);
+    layout->setSpacing(sizeScale(4));
     layout->setAlignment(Qt::AlignRight);
 
     minimizeButton = new IconButton();
@@ -31,4 +33,16 @@ QRect TitleBar::getMinimizeButtonRect() const {
 
 QRect TitleBar::getCloseButtonRect() const {
     return closeButton->geometry(); // 返回关闭按钮的几何区域
+}
+
+void TitleBar::minimizeClicked() {
+    if (parentWidget()) {
+        parentWidget()->showMinimized(); // 最小化窗口
+    }
+}
+
+void TitleBar::closeClicked() {
+    if (parentWidget()) {
+        parentWidget()->close(); // 关闭窗口
+    }
 }
