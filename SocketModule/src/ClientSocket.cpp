@@ -18,7 +18,8 @@
 #include <shared_mutex>
 
 // 调用select函数传入的判断类型
-enum class selectType {
+enum class selectType
+{
     READ,
     WRITE,
     READ_AND_WRITE
@@ -27,7 +28,7 @@ enum class selectType {
 // 读写socket池并发控制锁
 static std::shared_mutex socketPoolMutex;
 
-constexpr const size_t timeWaitSeconds = 5;
+constexpr const size_t timeWaitSeconds = 10;
 
 // socket池
 std::unordered_map<socketIndex, std::unique_ptr<MSocket>> ClientSocket::socketPool{};
@@ -127,11 +128,55 @@ socketIndex ClientSocket::connectToServer(const std::string& _host, const std::s
     } while (_temp == nullptr);
     MSocket& _socket = *_temp;
 
-    // 初始化socket信息结构体
-    memset(&(_socket.ipAddr), 0, sizeof(_socket.ipAddr)); // 置零避免错误
-    _socket.ipAddr.ai_family = AF_UNSPEC;                 // 不指定ip协议簇
-    _socket.ipAddr.ai_socktype = SOCK_STREAM;             // 选择TCP
-    _socket.ipAddr.ai_protocol = IPPROTO_TCP;             // 选择TCP
+    memset(&(_socket.ipAddr), 0, sizeof(_socket.ipAddr));
+    _socket.ipAddr.ai_family = AF_UNSPEC;
+    _socket.ipAddr.ai_socktype = SOCK_STREAM;
+    _socket.ipAddr.ai_protocol = IPPROTO_TCP;
+
+    _socket.result = getaddrinfo(_socket.host.c_str(), _socket.port.c_str(), &_socket.ipAddr, &_socket.ipResult);
+    if (_socket.result != 0) {
+        _socket.errorLog = _M_DNS_ERR + std::to_string(WSAGetLastError()) + "\n";
+        deleteSocket(index);
+        return index;
+    }
+
+    _socket.socket = socket(_socket.ipResult->ai_family, _socket.ipResult->ai_socktype, _socket.ipResult->ai_protocol);
+    if (_socket.socket == INVALID_SOCKET || !setSocketNonblocked(_socket.socket)) {
+        _socket.errorLog = _M_SOCKET_CREATE_ERR + std::to_string(WSAGetLastError()) + "\n";
+        deleteSocket(index);
+        return index;
+    }
+
+    _socket.result = connect(_socket.socket, _socket.ipResult->ai_addr, static_cast<int>(_socket.ipResult->ai_addrlen));
+    bool errorOccurred;
+#if defined(_WIN32)
+    errorOccurred = _socket.result == SOCKET_ERROR && WSAGetLastError() != WSAEWOULDBLOCK;
+#else
+    errorOccurred = _socket.result == SOCKET_ERROR && errno != EINPROGRESS;
+#endif
+    if (errorOccurred) {
+        _socket.errorLog = _M_SOCKET_CONNECT_ERR + std::to_string(WSAGetLastError());
+        deleteSocket(index);
+        return index;
+    }
+
+    freeaddrinfo(_socket.ipResult);
+
+    if (!waitForConnection(_socket.socket, timeWaitSeconds)) {
+        _socket.errorLog = _M_SOCKET_CONNECT_ERR + std::to_string(WSAGetLastError());
+        deleteSocket(index);
+        return index;
+    }
+
+    return index;
+}
+
+socketIndex ClientSocket::sslConnect(socketIndex& index, const std::string& targetHost, const std::string& targetPort) {
+    MSocket* _temp = findSocket(index);
+    if (_temp == nullptr) {
+        return false;
+    }
+    MSocket& _socket = *_temp;
 
     // 建立SSL上下文
     _socket.ctx = SSL_CTX_new(_socket.meth);
@@ -140,6 +185,76 @@ socketIndex ClientSocket::connectToServer(const std::string& _host, const std::s
         deleteSocket(index);
         return index;
     }
+
+    // 建立ssl连接
+    _socket.sslSocket = SSL_new(_socket.ctx);
+    if (_socket.sslSocket == NULL) {
+        _socket.errorLog = _M_SSL_CREATE_ERR;
+        deleteSocket(index);
+        return index;
+    }
+
+    SSL_set_mode(_socket.sslSocket, SSL_MODE_AUTO_RETRY);            // 自动重试
+    SSL_set_tlsext_host_name(_socket.sslSocket, targetHost.c_str()); // tls握手失败时尝试指定主机名
+
+    // 绑定套接字
+    SSL_set_fd(_socket.sslSocket, static_cast<int>(_socket.socket));
+
+    // 建立SSL连接
+    while (true) {
+        _socket.result = SSL_connect(_socket.sslSocket);
+        if (_socket.result == 1) {
+            // SSL连接成功
+            return index;
+        }
+
+        // 获取错误码
+        _socket.result = SSL_get_error(_socket.sslSocket, _socket.result);
+
+        if (_socket.result == SSL_ERROR_WANT_READ || _socket.result == SSL_ERROR_WANT_WRITE) {
+            if (_socket.result == SSL_ERROR_WANT_READ) {
+                if (selectSocket(_socket.socket, selectType::READ)) {
+                    continue;
+                }
+            } else if (_socket.result == SSL_ERROR_WANT_WRITE) {
+                if (selectSocket(_socket.socket, selectType::WRITE)) {
+                    continue;
+                }
+            }
+            _socket.errorLog = _M_SSL_CONNECT_ERR;
+            deleteSocket(index);
+            return index;
+        }
+        char err_buf[256];
+        ERR_error_string(ERR_get_error(), err_buf);
+        OutputDebugStringA(err_buf);
+        // _socket.errorLog =
+        //     _M_SSL_CONNECT_ERR + std::to_string(_socket.result) + ": " + ERR_reason_error_string(ERR_get_error());
+        deleteSocket(index);
+        return index;
+    }
+}
+
+socketIndex ClientSocket::connectToServerSSL(const std::string& _host, const std::string& _port) {
+    socketIndex index = ClientSocket::reuseSocket(_host);
+    if (index != -1 && selectSocket(findSocket(index)->socket, selectType::WRITE)) {
+        return index;
+    } else {
+        deleteSocket(index);
+    }
+
+    MSocket* _temp;
+    do {
+        index = creatSocket(_host, _port);
+        _temp = findSocket(index);
+    } while (_temp == nullptr);
+    MSocket& _socket = *_temp;
+
+    // 初始化socket信息结构体
+    memset(&(_socket.ipAddr), 0, sizeof(_socket.ipAddr)); // 置零避免错误
+    _socket.ipAddr.ai_family = AF_UNSPEC;                 // 不指定ip协议簇
+    _socket.ipAddr.ai_socktype = SOCK_STREAM;             // 选择TCP
+    _socket.ipAddr.ai_protocol = IPPROTO_TCP;             // 选择TCP
 
     // 通过getaddrinfo函数进行DNS请求
     _socket.result = getaddrinfo(_socket.host.c_str(), _socket.port.c_str(), &_socket.ipAddr, &_socket.ipResult);
@@ -182,50 +297,8 @@ socketIndex ClientSocket::connectToServer(const std::string& _host, const std::s
         return index;
     }
 
-    // 建立ssl连接
-    _socket.sslSocket = SSL_new(_socket.ctx);
-    if (_socket.sslSocket == NULL) {
-        _socket.errorLog = _M_SSL_CREATE_ERR;
-        deleteSocket(index);
-        return index;
-    }
-
-    SSL_set_mode(_socket.sslSocket, SSL_MODE_AUTO_RETRY);              // 自动重试
-    SSL_set_tlsext_host_name(_socket.sslSocket, _socket.host.c_str()); // tls握手失败时尝试指定主机名
-
-    // 绑定套接字
-    SSL_set_fd(_socket.sslSocket, static_cast<int>(_socket.socket));
-
     // 建立SSL连接
-    while (true) {
-        _socket.result = SSL_connect(_socket.sslSocket);
-        if (_socket.result == 1) {
-            // SSL连接成功
-            return index;
-        }
-
-        // 获取错误码
-        _socket.result = SSL_get_error(_socket.sslSocket, _socket.result);
-
-        if (_socket.result == SSL_ERROR_WANT_READ || _socket.result == SSL_ERROR_WANT_WRITE) {
-            if (_socket.result == SSL_ERROR_WANT_READ) {
-                if (selectSocket(_socket.socket, selectType::READ)) {
-                    continue;
-                }
-            } else if (_socket.result == SSL_ERROR_WANT_WRITE) {
-                if (selectSocket(_socket.socket, selectType::WRITE)) {
-                    continue;
-                }
-            }
-            _socket.errorLog = _M_SSL_CONNECT_ERR;
-            deleteSocket(index);
-            return index;
-        }
-        _socket.errorLog =
-            _M_SSL_CONNECT_ERR + std::to_string(_socket.result) + ": " + ERR_reason_error_string(ERR_get_error());
-        deleteSocket(index);
-        return index;
-    }
+    return ClientSocket::sslConnect(index, _host, _port);
 }
 
 bool ClientSocket::socketSend(socketIndex& index, const std::string& msg) {
@@ -237,14 +310,35 @@ bool ClientSocket::socketSend(socketIndex& index, const std::string& msg) {
 
     size_t sentLength = 0;
     while (sentLength < msg.length()) {
-        _socket.result =
-            SSL_write(_socket.sslSocket, msg.c_str() + sentLength, static_cast<int>(msg.length() - sentLength));
+        _socket.result = send(_socket.socket, msg.c_str() + sentLength, static_cast<int>(msg.length() - sentLength), 0);
+        if (_socket.result == SOCKET_ERROR) {
+            if (WSAGetLastError() == WSAEWOULDBLOCK && selectSocket(_socket.socket, selectType::WRITE)) {
+                continue;
+            }
+            _socket.errorLog = _M_SOCKET_SEND_ERR + std::to_string(WSAGetLastError());
+            deleteSocket(index);
+            return false;
+        } else {
+            sentLength += _socket.result;
+        }
+    }
+    return true;
+}
+
+bool ClientSocket::socketSendSSL(socketIndex& index, const std::string& msg) {
+    MSocket* _temp = findSocket(index);
+    if (_temp == nullptr) {
+        return false;
+    }
+    MSocket& _socket = *_temp;
+
+    size_t sentLength = 0;
+    while (sentLength < msg.length()) {
+        _socket.result = SSL_write(_socket.sslSocket, msg.c_str() + sentLength, static_cast<int>(msg.length() - sentLength));
         if (_socket.result <= 0) {
             _socket.result = SSL_get_error(_socket.sslSocket, _socket.result);
-            if (_socket.result == SSL_ERROR_WANT_WRITE) {
-                if (selectSocket(_socket.socket, selectType::WRITE)) {
-                    continue;
-                }
+            if (_socket.result == SSL_ERROR_WANT_WRITE && selectSocket(_socket.socket, selectType::WRITE)) {
+                continue;
             }
             _socket.errorLog = _M_SSL_WRITE_ERR + _socket.result;
             deleteSocket(index);
@@ -265,6 +359,77 @@ std::unique_ptr<HttpResponseParser> ClientSocket::socketReceive(socketIndex& ind
 
     std::string receivedData;
     std::array<char, _BUFFER_SIZE> recvBuffer;
+    size_t dividePos = std::string::npos;
+
+    while (dividePos == std::string::npos) {
+        _socket.result = recv(_socket.socket, recvBuffer.data(), _BUFFER_SIZE, 0);
+        if (_socket.result <= 0) {
+            if (WSAGetLastError() == WSAEWOULDBLOCK && selectSocket(_socket.socket, selectType::READ)) {
+                continue;
+            }
+            _socket.errorLog = _M_SOCKET_RECV_ERR + std::to_string(WSAGetLastError());
+            deleteSocket(index);
+            return nullptr;
+        }
+        receivedData.append(recvBuffer.data(), _socket.result);
+        dividePos = receivedData.find("\r\n\r\n");
+    }
+
+    std::string headData = receivedData.substr(0, dividePos);
+    dividePos += 4;
+    std::string bodyData = receivedData.substr(dividePos);
+
+    std::unique_ptr<HttpResponseParser> parser(new HttpResponseParser);
+    parser->parseResponse(headData);
+
+    if (parser->getHttpHead("Transfer-Encoding") == "chunked") {
+        parser->recvByChunckedData(bodyData);
+        while (true) {
+            _socket.result = recv(_socket.socket, recvBuffer.data(), _BUFFER_SIZE, 0);
+            if (_socket.result <= 0) {
+                if (WSAGetLastError() == WSAEWOULDBLOCK && selectSocket(_socket.socket, selectType::READ)) {
+                    continue;
+                }
+                _socket.errorLog = _M_SOCKET_RECV_ERR + std::to_string(WSAGetLastError());
+                deleteSocket(index);
+                return nullptr;
+            }
+            bodyData.append(recvBuffer.data(), _socket.result);
+            if (parser->recvByChunckedData(bodyData) == 0) {
+                break;
+            }
+        }
+    }
+
+    if (!parser->getHttpHead("Content-Length").empty()) {
+        size_t restLength = std::numeric_limits<socketIndex>::max();
+        while (restLength > 0) {
+            _socket.result = recv(_socket.socket, recvBuffer.data(), static_cast<int>(std::min(_BUFFER_SIZE, restLength)), 0);
+            if (_socket.result <= 0) {
+                if (WSAGetLastError() == WSAEWOULDBLOCK && selectSocket(_socket.socket, selectType::READ)) {
+                    continue;
+                }
+                _socket.errorLog = _M_SOCKET_RECV_ERR + std::to_string(WSAGetLastError());
+                deleteSocket(index);
+                return nullptr;
+            }
+            bodyData.append(recvBuffer.data(), _socket.result);
+            restLength = parser->recvByContentLength(bodyData);
+        }
+    }
+
+    return parser;
+}
+
+std::unique_ptr<HttpResponseParser> ClientSocket::socketReceiveSSL(socketIndex& index) {
+    MSocket* _temp = findSocket(index);
+    if (_temp == nullptr) {
+        return nullptr;
+    }
+    MSocket& _socket = *_temp;
+
+    std::string receivedData;
+    std::array<char, _BUFFER_SIZE> recvBuffer;
 
     // 报文头与报文载荷分割点
     size_t dividePos = std::string::npos;
@@ -273,10 +438,8 @@ std::unique_ptr<HttpResponseParser> ClientSocket::socketReceive(socketIndex& ind
         _socket.result = SSL_read(_socket.sslSocket, recvBuffer.data(), _BUFFER_SIZE);
         if (_socket.result <= 0) {
             _socket.result = SSL_get_error(_socket.sslSocket, _socket.result);
-            if (_socket.result == SSL_ERROR_WANT_READ) {
-                if (selectSocket(_socket.socket, selectType::READ)) {
-                    continue;
-                }
+            if (_socket.result == SSL_ERROR_WANT_READ && selectSocket(_socket.socket, selectType::READ)) {
+                continue;
             }
             _socket.errorLog = _M_SSL_WRITE_ERR + _socket.result;
             deleteSocket(index);
@@ -296,18 +459,14 @@ std::unique_ptr<HttpResponseParser> ClientSocket::socketReceive(socketIndex& ind
     // 解析http响应头
     parser->parseResponse(headData);
 
-    // 使用Transfer-Encoding: chunked判断接受
-    bool chunked = (parser->getHttpHead("Transfer-Encoding") == "chunked");
-    if (chunked) {
+    if (parser->getHttpHead("Transfer-Encoding") == "chunked") {
         parser->recvByChunckedData(bodyData);
         while (true) {
             _socket.result = SSL_read(_socket.sslSocket, recvBuffer.data(), _BUFFER_SIZE);
             if (_socket.result <= 0) {
                 _socket.result = SSL_get_error(_socket.sslSocket, _socket.result);
-                if (_socket.result == SSL_ERROR_WANT_READ) {
-                    if (selectSocket(_socket.socket, selectType::READ)) {
-                        continue;
-                    }
+                if (_socket.result == SSL_ERROR_WANT_READ && selectSocket(_socket.socket, selectType::READ)) {
+                    continue;
                 }
                 _socket.errorLog = _M_SSL_WRITE_ERR + _socket.result;
                 deleteSocket(index);
@@ -319,18 +478,15 @@ std::unique_ptr<HttpResponseParser> ClientSocket::socketReceive(socketIndex& ind
             }
         }
     }
-    // 使用content-length判断接收
-    else {
+
+    if (!parser->getHttpHead("Content-Length").empty()) {
         size_t restLength = std::numeric_limits<socketIndex>::max();
         while (restLength > 0) {
-            _socket.result =
-                SSL_read(_socket.sslSocket, recvBuffer.data(), static_cast<int>(std::min(_BUFFER_SIZE, restLength)));
+            _socket.result = SSL_read(_socket.sslSocket, recvBuffer.data(), static_cast<int>(std::min(_BUFFER_SIZE, restLength)));
             if (_socket.result <= 0) {
                 _socket.result = SSL_get_error(_socket.sslSocket, _socket.result);
-                if (_socket.result == SSL_ERROR_WANT_READ) {
-                    if (selectSocket(_socket.socket, selectType::READ)) {
-                        continue;
-                    }
+                if (_socket.result == SSL_ERROR_WANT_READ && selectSocket(_socket.socket, selectType::READ, 30)) {
+                    continue;
                 }
                 _socket.errorLog = _M_SSL_WRITE_ERR + _socket.result;
                 deleteSocket(index);
@@ -340,6 +496,7 @@ std::unique_ptr<HttpResponseParser> ClientSocket::socketReceive(socketIndex& ind
             restLength = parser->recvByContentLength(bodyData);
         }
     }
+
     return parser;
 }
 
@@ -428,4 +585,98 @@ bool selectSocket(const SOCKET socket, selectType type, int timeoutSecond) {
         return false;
     }
     return true;
+}
+
+// 1. 发送 CONNECT 请求建立隧道（返回是否成功）
+bool ClientSocket::httpProxyConnect(socketIndex& sIndex, const std::string& targetHost, const std::string& targetPort) {
+    std::string connectRequest = "CONNECT " + targetHost + ":" + targetPort +
+                                 " HTTP/1.1\r\n"
+                                 "Host: " +
+                                 targetHost + ":" + targetPort +
+                                 "\r\n"
+                                 "Proxy-Connection: Keep-Alive\r\n\r\n";
+
+    if (!socketSend(sIndex, connectRequest)) {
+        sIndex = -1;
+        return false;
+    }
+
+    auto resp = socketReceive(sIndex);
+    if (!resp) {
+        sIndex = -1;
+        return false;
+    }
+
+    // 简单判断响应状态码是否200
+    if (resp->getStatusCode() == "200") {
+        return true;
+    }
+
+    sIndex = -1;
+    return false;
+}
+
+std::future<std::string> ClientSocket::asyncRequestProxy(const std::string& proxyHost, const std::string& proxyPort, const std::string& targetHost,
+                                                         const std::string& targetPort, const std::string& httpsRequest) {
+    return std::async(std::launch::async, [=]() -> std::string {
+        static const std::string emptyStr = "";
+        socketIndex sIndex = ClientSocket::connectToServer(proxyHost, proxyPort);
+        if (sIndex == -1) {
+            return emptyStr;
+        }
+
+        if (!httpProxyConnect(sIndex, targetHost, targetPort)) {
+            ClientSocket::disconnectToServer(sIndex);
+            return emptyStr;
+        }
+
+        sslConnect(sIndex, targetHost, targetPort);
+        if (sIndex == -1) {
+            ClientSocket::disconnectToServer(sIndex);
+            return emptyStr;
+        }
+
+        if (!ClientSocket::socketSendSSL(sIndex, httpsRequest)) {
+            ClientSocket::disconnectToServer(sIndex);
+            return emptyStr;
+        }
+
+        auto resp = ClientSocket::socketReceiveSSL(sIndex);
+        ClientSocket::disconnectToServer(sIndex);
+
+        if (!resp) {
+            return emptyStr;
+        }
+
+        return resp->getPayload();
+    });
+}
+
+std::future<std::string> ClientSocket::asyncRequest(const std::string& request, const std::string& host, const std::string& port) {
+    return std::async(std::launch::async, [=]() -> std::string {
+        static const std::string emptyStr = "";
+        std::string respCode = emptyStr;
+        socketIndex sIndex = -1;
+        int retryTimes = 3;
+        while (respCode != "200" && retryTimes > 0) {
+            if (sIndex == -1) {
+                sIndex = ClientSocket::connectToServerSSL(host, port);
+                if (sIndex != -1) {
+                    if (ClientSocket::socketSendSSL(sIndex, request)) {
+                        std::unique_ptr<HttpResponseParser> resp = ClientSocket::socketReceiveSSL(sIndex);
+                        if (resp == nullptr) {
+                            continue;
+                        }
+                        respCode = resp->getStatusCode();
+                        if (respCode == "200") {
+                            return resp->getPayload();
+                        }
+                    }
+                }
+            }
+            ClientSocket::releaseSocket(sIndex);
+            --retryTimes;
+        }
+        return emptyStr;
+    });
 }

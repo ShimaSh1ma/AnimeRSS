@@ -18,17 +18,24 @@ class RssTable : public QWidget {
     void resizeEvent(QResizeEvent* event) override;
 
   private:
-    std::vector<std::unique_ptr<RssData>> rssDatas;
-    std::vector<std::unique_ptr<RssItem>> rssItems;
+    void initRssAdd();
+
+    std::vector<std::unique_ptr<RssData>> rssList;
+    std::vector<std::unique_ptr<QWidget>> rssItems;
 
     QGridLayout* layout;
     void initUI();
 
     void loadRssDatas();
-    void createRssItems();
+    void initRssItems();
+    void requestAllRss();
     void init();
 
     void caculateColumn();
     int column = 0; // 当前列数
     void adjustLayout();
+
+    void addRssData(const char* rssUrl, const char* savePath, const char* title);
+    void deleteRssData(const RssItem* item);
+    void openRssAddDialog();
 };

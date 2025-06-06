@@ -1,11 +1,83 @@
 #pragma once
 
-class RssData {
+#include <QObject>
+#include <future>
+#include <memory>
+#include <string>
+#include <vector>
+
+struct RssMessage {
+    std::string title;
+    std::string link;
+    std::string pubDate;
+    std::string description;
+    std::string enclosure;
+    bool downloaded = false;
+};
+
+struct RssBody {
+    std::string url;
+    std::string savePath;
+    std::string title;
+
+    std::vector<std::unique_ptr<RssMessage>> messages;
+
+    std::string originRssHtml;
+
+    std::string imageUrl;
+    std::string imagePath;
+
+    std::string lastUpdata;
+    std::string lastRead;
+};
+
+class RssData : public QObject {
+    Q_OBJECT
   public:
     RssData() = default;
+    RssData(const char* url, const char* savePath, const char* title);
+
     RssData(const RssData&) = default;
     RssData(RssData&&) noexcept = default;
     RssData& operator=(const RssData&) = default;
     RssData& operator=(RssData&&) noexcept = default;
     ~RssData() = default;
+
+    std::function<void()> updateUI;
+
+    void requestRss();
+
+    std::string getTitle();
+    std::string getImage();
+    std::string getUrl();
+
+    void loadFromJson(const std::string& _json);
+
+    void deleteData();
+
+  private:
+    bool isRequesting = false;
+    bool isImageRequesting = false;
+
+    bool isRead = false;
+
+    std::string jsonPath;
+
+    RssBody body;
+
+    std::future<std::string> rssFuture;
+    std::future<std::string> imageFuture;
+
+    // 检查是否有更新
+    void checkUpdate();
+    // 标记已读，更新lastRead;
+    void read();
+    // 保存为json
+    void saveAsJson();
+    // 解析rss
+    void parseRss();
+    // 解析封面图
+    void parseImageUrl();
+    // 请求封面图
+    void requestImage();
 };

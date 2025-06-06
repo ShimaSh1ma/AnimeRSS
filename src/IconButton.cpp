@@ -1,28 +1,66 @@
 #include "Iconbutton.h"
 #include "Constant.h"
+#include "Iconbutton.h"
+#include <QColor>
 #include <QDebug>
 #include <QEvent>
-#include <QFile>
+#include <QIcon>
+#include <QMouseEvent>
+#include <QPainter>
 
 IconButton::IconButton(QWidget* parent) : QPushButton(parent) {
-    // 默认样式：无边框、透明背景
-    setStyleSheet("border: none; background-color: transparent;");
-    setIconSize(QSize(_iconSize, _iconSize));       // 图标大小
-    setFixedSize(_iconButtonSize, _iconButtonSize); // 按钮大小
+    hoverColor = Qt::transparent;
+    normalColor = Qt::transparent;
+
+    setFlat(true);
+    setCursor(Qt::PointingHandCursor);
+
+    setIconSize(QSize(_iconSize, _iconSize));
+    setFixedSize(_iconButtonSize, _iconButtonSize);
+
+    setAttribute(Qt::WA_Hover); // 启用 hover 事件
 }
 
 void IconButton::setIcons(const QIcon& normal, const QIcon& hover) {
     normalIcon = normal;
     hoverIcon = hover;
-    setIcon(normalIcon); // 初始状态
+    currentIcon = normalIcon;
+    update();
+}
+
+void IconButton::setBackColor(const QColor& normal, const QColor& hover) {
+    normalColor = normal;
+    hoverColor = hover;
+    update();
 }
 
 void IconButton::enterEvent(QEvent* event) {
-    setIcon(hoverIcon); // 悬停时切换图标
+    currentIcon = hoverIcon;
+    isHovered = true;
+    update();
     QPushButton::enterEvent(event);
 }
 
 void IconButton::leaveEvent(QEvent* event) {
-    setIcon(normalIcon); // 离开时恢复图标
+    currentIcon = normalIcon;
+    isHovered = false;
+    update();
     QPushButton::leaveEvent(event);
+}
+
+void IconButton::paintEvent(QPaintEvent* event) {
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    // 背景色
+    QColor bgColor = isHovered ? hoverColor : normalColor;
+    painter.fillRect(rect(), bgColor);
+
+    // 图标绘制
+    if (!currentIcon.isNull()) {
+        QSize iconSize = this->iconSize();
+        QRect iconRect((width() - iconSize.width()) / 2, (height() - iconSize.height()) / 2, iconSize.width(), iconSize.height());
+
+        currentIcon.paint(&painter, iconRect);
+    }
 }

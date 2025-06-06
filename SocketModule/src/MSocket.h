@@ -81,7 +81,7 @@ class MSocket final {
     struct addrinfo* ipResult = nullptr;
 
     // 选择SSL版本
-    const SSL_METHOD* meth = SSLv23_client_method();
+    const SSL_METHOD* meth = TLS_client_method();
     // 声明SSL上下文
     SSL_CTX* ctx = nullptr;
 

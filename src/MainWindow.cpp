@@ -22,7 +22,6 @@
 
 MainWindow::MainWindow(QWidget* parent) : QWidget(parent) {
     setAttribute(Qt::WA_TranslucentBackground);
-    setWindowFlags(Qt::FramelessWindowHint);
     resize(sizeScale(800), sizeScale(600));
 
     MainWindow::initUI();
@@ -50,8 +49,8 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* r
         QPoint localPos = mapFromGlobal(QPoint(x, y));
 
         // 判断是否在 TitleBar 区域
-        if (localPos.y() < _titleBarHeight + _borderWidth && localPos.y() >= _borderWidth &&
-            localPos.x() >= _borderWidth && localPos.x() < this->width() - _borderWidth) {
+        if (localPos.y() < _titleBarHeight + _borderWidth && localPos.y() >= _borderWidth && localPos.x() >= _borderWidth &&
+            localPos.x() < this->width() - _borderWidth) {
             if (titleBar) {
                 QRect minimizeButtonRect = titleBar->getMinimizeButtonRect();
                 QRect closeButtonRect = titleBar->getCloseButtonRect();
@@ -165,13 +164,6 @@ void MainWindow::resizeEvent(QResizeEvent* event) {
 
 void MainWindow::paintEvent(QPaintEvent* paintE) {
     QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setRenderHint(QPainter::SmoothPixmapTransform);
-
-    QPainterPath path;
-    path.addRoundedRect(this->rect(), _cornerRadius, _cornerRadius);
-    painter.setClipPath(path);
-    painter.fillRect(this->rect(), QColor(0, 0, 0));
 }
 
 void MainWindow::initUI() {
@@ -200,8 +192,9 @@ void MainWindow::initContainer() {
 }
 
 void MainWindow::initBackImg() {
-    backImg = new BackImg(this);
-    backImg->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    backImg = BackImg::Instance(this);
+    backImg->resize(this->size());
     backImg->show();
-    backImg->stackUnder(mainLayout->parentWidget());
+
+    backImg->lower();
 }

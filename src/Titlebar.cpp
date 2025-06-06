@@ -7,15 +7,18 @@
 TitleBar::TitleBar(QWidget* parent) : QWidget(parent) {
     setAttribute(Qt::WA_TransparentForMouseEvents, false);
     layout = new QHBoxLayout(this);
-    layout->setContentsMargins(0, _borderWidth, _borderWidth, 0);
-    layout->setSpacing(sizeScale(4));
-    layout->setAlignment(Qt::AlignRight);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+    layout->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 
     minimizeButton = new IconButton();
     closeButton = new IconButton();
 
     minimizeButton->setIcons(QIcon(":/icons/minimize_normal"), QIcon(":/icons/minimize_hover"));
     closeButton->setIcons(QIcon(":/icons/close_normal"), QIcon(":/icons/close_hover"));
+
+    minimizeButton->setBackColor(Qt::transparent, Qt::gray);
+    closeButton->setBackColor(Qt::transparent, Qt::red);
 
     layout->addStretch();
     layout->addWidget(minimizeButton);
@@ -28,21 +31,21 @@ TitleBar::TitleBar(QWidget* parent) : QWidget(parent) {
 }
 
 QRect TitleBar::getMinimizeButtonRect() const {
-    return minimizeButton->geometry(); // 返回最小化按钮的几何区域
+    return minimizeButton->geometry();
 }
 
 QRect TitleBar::getCloseButtonRect() const {
-    return closeButton->geometry(); // 返回关闭按钮的几何区域
+    return closeButton->geometry();
 }
 
 void TitleBar::minimizeClicked() {
     if (parentWidget()) {
-        parentWidget()->showMinimized(); // 最小化窗口
+        parentWidget()->showMinimized();
     }
 }
 
 void TitleBar::closeClicked() {
     if (parentWidget()) {
-        parentWidget()->close(); // 关闭窗口
+        parentWidget()->close();
     }
 }

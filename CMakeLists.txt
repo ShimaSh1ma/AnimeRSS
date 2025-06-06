@@ -5,6 +5,12 @@ project(AnimaRSS)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 17)
 
+# 引入 tinyxml2
+add_subdirectory(thirdRepo/tinyxml2)
+
+# 引入 nlohmann_json
+add_subdirectory(thirdRepo/nlohmann_json)
+
 # 编译器选项
 if(MSVC)
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -67,6 +73,8 @@ target_link_libraries(${PROJECT_NAME}
         Qt5::Widgets
         Qt5::Gui
         SocketModule
+        tinyxml2
+        nlohmann_json
 )
 
 # # 设置资源图片目录路径变量

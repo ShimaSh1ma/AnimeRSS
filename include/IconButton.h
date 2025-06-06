@@ -1,7 +1,9 @@
 #pragma once
 
-#include <QIcon>
 #include <QPushButton>
+
+class QIcon;
+class QColor;
 
 class IconButton : public QPushButton {
     Q_OBJECT
@@ -9,12 +11,21 @@ class IconButton : public QPushButton {
   public:
     explicit IconButton(QWidget* parent = nullptr);
     void setIcons(const QIcon& normal, const QIcon& hover);
+    void setBackColor(const QColor& normal, const QColor& hover);
 
   protected:
     void enterEvent(QEvent* event) override;
     void leaveEvent(QEvent* event) override;
+    void paintEvent(QPaintEvent* event) override;
 
   private:
-    QIcon normalIcon; // 正常状态图标
-    QIcon hoverIcon;  // 悬停状态图标
+    QIcon normalIcon;
+    QIcon hoverIcon;
+    QIcon currentIcon;
+
+    bool isHovered = false;
+
+    QColor normalColor;
+    QColor hoverColor;
+    QColor pressColor;
 };

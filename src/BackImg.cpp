@@ -1,6 +1,7 @@
 #include "BackImg.h"
 #include "Constant.h"
 #include <QGraphicsBlurEffect>
+#include <QGraphicsOpacityEffect>
 #include <QGraphicsPixmapItem>
 #include <QGraphicsScene>
 #include <QImage>
@@ -10,29 +11,61 @@
 #include <QResizeEvent>
 #include <QWidget>
 
+BackImg* BackImg::_instance = nullptr;
+
+BackImg* BackImg::Instance(QWidget* parent) {
+    if (!_instance) {
+        _instance = new BackImg(parent);
+    }
+    return _instance;
+}
+
 BackImg::BackImg(QWidget* parent) : QWidget(parent) {
     setAttribute(Qt::WA_TranslucentBackground);
     setWindowFlags(Qt::FramelessWindowHint);
 
-    QString imagePath = "D:/照片/动漫截图/时光流逝，饭菜依旧美味/无标题.png";
-    image.load(imagePath);
-    pix = pix.fromImage(image);
-    temp = pix;
-    temp = pix.scaled(this->size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+    fadeAnim = new QPropertyAnimation(this, "imgOpacity", this);
+    fadeAnim->setDuration(400);
+    fadeAnim->setStartValue(0.2);
+    fadeAnim->setEndValue(1.0);
+}
+
+void BackImg::updateImg(const std::string& path) {
+    image.load(path.c_str());
+    pix = QPixmap::fromImage(image);
     stretchImage();
+    update();
+    fadeIn();
+}
+
+void BackImg::cleanImg() {
+    image = QImage();
+    pix = QPixmap();
+    temp = QPixmap();
+    update();
+}
+
+void BackImg::fadeIn() {
+    startFade(0.0, 1.0);
+}
+
+void BackImg::startFade(qreal from, qreal to) {
+    fadeAnim->stop();
+    fadeAnim->setStartValue(from);
+    fadeAnim->setEndValue(to);
+    fadeAnim->start();
 }
 
 void BackImg::stretchImage() {
     if (!pix.isNull()) {
-        // 保持横纵比缩放图片适应窗口大小
         temp = pix.scaled(this->size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
 
-        this->imageWidth = temp.width();
-        this->imageHeight = temp.height();
+        imageWidth = temp.width();
+        imageHeight = temp.height();
         wWidth = this->width();
         wHeight = this->height();
-        xpos = -(((this->imageWidth - this->width()) / 2 + (temp.width() - this->wWidth) / 2)) / 2;
-        ypos = -(((this->imageHeight - this->height()) / 2 + (temp.height() - this->wHeight) / 2)) / 2;
+        xpos = -(((imageWidth - wWidth) / 2 + (temp.width() - wWidth) / 2)) / 2;
+        ypos = -(((imageHeight - wHeight) / 2 + (temp.height() - wHeight) / 2)) / 2;
     }
 }
 
@@ -41,24 +74,19 @@ void BackImg::paintEvent(QPaintEvent* event) {
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setRenderHint(QPainter::SmoothPixmapTransform);
 
-    QPainterPath path;
-    path.addRoundedRect(this->rect(), _cornerRadius, _cornerRadius);
-    painter.setClipPath(path);
-    painter.fillRect(this->rect(), Qt::transparent);
+    painter.fillRect(this->rect(), QColor(30, 30, 30));
 
-    // 绘制背景图片
     if (!pix.isNull()) {
-        painter.setOpacity(0.5);
+        painter.setOpacity(imgOpacity * 0.6);
         painter.drawPixmap(xpos, ypos, temp);
     }
 
-    // 绘制标题栏区域
     QRect titleBarRect(0, 0, this->width(), _titleBarHeight);
-    QPixmap titleBarPixmap = temp.copy(titleBarRect);
-    QColor overlayColor(0, 0, 0, 200); // 半透明黑色
+    QColor overlayColor(0, 0, 0, 100);
     painter.fillRect(titleBarRect, overlayColor);
 }
 
 void BackImg::resizeEvent(QResizeEvent* event) {
-    this->stretchImage();
+    stretchImage();
+    update();
 }

@@ -1,71 +1,112 @@
 #include "RssItem.h"
+#include "BackImg.h"
 #include "Codec.h"
 #include "Constant.h"
+#include "IconButton.h"
 #include "RssData.h"
 
 #include <QDebug>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPushButton>
 #include <QVBoxLayout>
 
-RssItem::RssItem(RssData* data, QWidget* parent) : QWidget(parent), rssData(data) {
+void* RssItem::chosenItem = nullptr;
+
+RssItem::RssItem(RssData* data, std::function<void(RssItem*)> deleteFunction, QWidget* parent)
+    : QWidget(parent), deleteFunction(deleteFunction), rssData(data) {
     initUI();
     updateContent();
+    data->updateUI = std::bind(&RssItem::updateContent, this);
 }
 
 void RssItem::initUI() {
-    // setMinimumWidth(_rssItemWidthMin);
-    // setMaximumWidth(_rssItemWidthMax);
-    setFixedHeight(_rssItemHeight); // 如果希望整个 RssItem 保持固定高度
+    setMinimumWidth(_rssItemWidthMin);
+    setMaximumWidth(_rssItemWidthMax);
+    setFixedHeight(_rssItemHeight);
+
+    deleteButton = new IconButton(this);
+    deleteButton->setFixedSize(20, 20);
+    deleteButton->setIcons(QIcon(":/icons/minimize_normal"), QIcon(":/icons/minimize_hover"));
+    deleteButton->setBackColor(Qt::transparent, Qt::gray);
+    deleteButton->move(width() - deleteButton->width() - sizeScale(6), sizeScale(6));
+
+    deleteButton->raise();
+
+    connect(deleteButton, &QPushButton::clicked, [this]() {
+        if (deleteFunction) {
+            deleteFunction(this);
+        }
+    });
+
+    refreshButton = new IconButton(this);
+    refreshButton->setFixedSize(20, 20);
+    refreshButton->setIcons(QIcon(":/icons/minimize_normal"), QIcon(":/icons/minimize_hover"));
+    refreshButton->setBackColor(Qt::transparent, Qt::gray);
+    refreshButton->move(width() - 2 * (refreshButton->width() + sizeScale(6)), sizeScale(6));
+    refreshButton->raise();
+
+    connect(refreshButton, &QPushButton::clicked, [this]() { this->rssData->requestRss(); });
 
     layout = new QVBoxLayout(this);
-    layout->setContentsMargins(this->width() / 6, 0, this->width() / 6, 0);
+    layout->setContentsMargins(this->width() / 9, 0, this->width() / 9, 0);
     layout->setSpacing(0);
     layout->setAlignment(Qt::AlignCenter);
 
     title = new QLabel(this);
-    title->setFont(QFont("SF Pro", sizeScale(14), QFont::Bold));
-    // 仅设置基本样式，移除固定高度相关的属性
-    title->setStyleSheet("QLabel {"
-                         "   color: rgba(255,255,255,200);"
-                         "   padding: 5px;"
-                         "   background-color: transparent;"
-                         "}");
+    title->setFont(QFont("SF Pro", sizeScale(16), QFont::Bold));
     title->setAlignment(Qt::AlignCenter);
     title->setWordWrap(true);
-    // 使用 Preferred 高度，使得文本内容决定高度，同时宽度尽可能填满
     title->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    // 可选：如果需要最大显示三行并截断超长文字，则在 updateContent 中用 QFontMetrics::elidedText 自行处理
+
+    QPalette palette = title->palette();
+    palette.setColor(QPalette::WindowText, QColor(255, 255, 255, 255));
+    title->setPalette(palette);
+
+    title->setAttribute(Qt::WA_TranslucentBackground);
+    title->setAutoFillBackground(true);
+
     layout->addWidget(title);
     setLayout(layout);
 }
 
 void RssItem::updateContent() {
-    if (rssData) {
-        // title = rssData->getTitle();
-        // image = rssData->getImage();
+    if (rssData->getTitle() != "") {
+        title->setText(rssData->getTitle().c_str());
+        title->setToolTip(title->text());
     } else {
-        title->setText(R"(时光流逝，饭菜依旧美味)");
-        title->setToolTip(title->text()); // 设置工具提示
-        image.load("D:/照片/动漫截图/时光流逝，饭菜依旧美味/无标题.png");
+        title->setText("RSS");
+        title->setToolTip(title->text());
     }
+    if (rssData->getImage() != "") {
+        image.load(rssData->getImage().c_str());
+    } else {
+        image = QImage(QSize(this->width(), this->height()), QImage::Format_RGB32);
+        image.fill(Qt::gray);
+    }
+
     update();
 }
 
 void RssItem::paintEvent(QPaintEvent* event) {
-    Q_UNUSED(event);
+    if (!mouseIn) {
+        if (RssItem::chosenItem == this) {
+            opacity = _chosenOpacity;
+        } else {
+            opacity = _unchosenOpacity;
+        }
+    }
+
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setRenderHint(QPainter::SmoothPixmapTransform);
 
-    // 绘制背景
     QPainterPath path;
     path.addRoundedRect(this->rect(), _cornerRadius, _cornerRadius);
     painter.setClipPath(path);
     painter.fillRect(rect(), Qt::transparent);
 
-    // 绘制图片，保持横纵比并填满
     if (!image.isNull()) {
         QRect targetRect = this->rect();
         QSize imageSize = image.size();
@@ -75,37 +116,51 @@ void RssItem::paintEvent(QPaintEvent* event) {
         painter.drawImage(filledRect, image);
 
         // 绘制半透明黑色蒙版
-        painter.setOpacity(opacity);                           // 设置蒙版透明度
-        painter.fillRect(filledRect, QColor(20, 20, 20, 255)); // 半透明黑色
+        painter.setOpacity(opacity);
+        painter.fillRect(filledRect, QColor(20, 20, 20, 255));
     }
 }
 
+void RssItem::resizeEvent(QResizeEvent* event) {
+    if (deleteButton) {
+        deleteButton->move(width() - deleteButton->width() - sizeScale(6), sizeScale(6));
+    }
+    QWidget::resizeEvent(event);
+
+    if (refreshButton) {
+        refreshButton->move(width() - 2 * (refreshButton->width() + sizeScale(6)), sizeScale(6));
+    }
+    QWidget::resizeEvent(event);
+}
+
 void RssItem::enterEvent(QEvent* event) {
-    Q_UNUSED(event);
-    // 鼠标进入事件处理
-    qDebug("Mouse entered RssItem");
-    opacity = _chosenOpacity; // 鼠标进入时设置为选中状态的透明度
-    update();                 // 触发重绘以应用新的透明度
+    mouseIn = true;
+    opacity = _chosenOpacity;
+
+    if (RssItem::chosenItem == nullptr) {
+        if (rssData->getImage() != "") {
+            BackImg::Instance()->updateImg(rssData->getImage());
+        }
+    }
+    update();
 }
 
 void RssItem::leaveEvent(QEvent* event) {
-    Q_UNUSED(event);
-    // 鼠标离开事件处理
-    qDebug("Mouse left RssItem");
-    opacity = _unchosenOpacity; // 鼠标离开时恢复为未选中状态的透明度
-    update();                   // 触发重绘以应用新的透明度
+    mouseIn = false;
+    opacity = _unchosenOpacity;
+
+    if (RssItem::chosenItem == nullptr) {
+        BackImg::Instance()->cleanImg();
+    }
+    update();
 }
 
 void RssItem::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
-        // 处理鼠标按下事件
-        qDebug("Mouse pressed on RssItem");
-    }
-}
-
-void RssItem::mouseReleaseEvent(QMouseEvent* event) {
-    if (event->button() == Qt::LeftButton) {
-        // 处理鼠标释放事件
-        qDebug("Mouse released on RssItem");
+        if (RssItem::chosenItem == this) {
+            RssItem::chosenItem = nullptr;
+        } else {
+            RssItem::chosenItem = this;
+        }
     }
 }

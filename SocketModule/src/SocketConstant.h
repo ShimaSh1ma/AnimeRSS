@@ -6,6 +6,9 @@ constexpr const char* _M_SOCKET_CREATE_ERR = "Socket Create Error";
 constexpr const char* _M_SOCKET_CONNECT_ERR = "Socket Connect Error";
 constexpr const char* _M_SOCKET_CLOSE_ERR = "Socket Close Error";
 
+constexpr const char* _M_SOCKET_RECV_ERR = "Socket Receive Error";
+constexpr const char* _M_SOCKET_SEND_ERR = "Socket Send Error";
+
 constexpr const char* _M_SSL_CONTEXT_ERR = "SSL_CTX_new Error";
 constexpr const char* _M_SSL_CREATE_ERR = "SSL New Error";
 constexpr const char* _M_SSL_CONNECT_ERR = "SSL Connect error";
