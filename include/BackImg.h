@@ -5,6 +5,8 @@
 #include <QPropertyAnimation>
 #include <QWidget>
 
+inline double opacity = 0.2;
+
 class BackImg : public QWidget {
     Q_OBJECT
   public:
@@ -12,7 +14,6 @@ class BackImg : public QWidget {
 
     void updateImg(const std::string& path);
     void cleanImg();
-    void fadeIn();
 
     inline qreal getImgOpacity() const {
         return imgOpacity;
@@ -28,10 +29,13 @@ class BackImg : public QWidget {
 
   private:
     explicit BackImg(QWidget* parent = nullptr);
+    static BackImg* _instance;
+
     void stretchImage();
     void startFade(qreal from, qreal to);
 
-    static BackImg* _instance;
+    void fadeIn();
+    void fadeOut();
 
     QImage image;
     QPixmap pix;
@@ -47,5 +51,5 @@ class BackImg : public QWidget {
     int ypos = 0;
 
     Q_PROPERTY(qreal imgOpacity READ getImgOpacity WRITE setImgOpacity)
-    qreal imgOpacity = 0.0;
+    qreal imgOpacity = opacity;
 };

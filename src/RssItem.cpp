@@ -69,6 +69,8 @@ void RssItem::initUI() {
 
     layout->addWidget(title);
     setLayout(layout);
+
+    setCursor(Qt::PointingHandCursor);
 }
 
 void RssItem::updateContent() {
@@ -115,9 +117,17 @@ void RssItem::paintEvent(QPaintEvent* event) {
         filledRect.moveCenter(targetRect.center());
         painter.drawImage(filledRect, image);
 
-        // 绘制半透明黑色蒙版
         painter.setOpacity(opacity);
         painter.fillRect(filledRect, QColor(20, 20, 20, 255));
+    }
+
+    if (RssItem::chosenItem == this) {
+        QPen pen(QColor(255, 255, 255, 255)); // 白色边框，带透明度
+        pen.setWidth(sizeScale(4));
+        painter.setPen(pen);
+        painter.setBrush(Qt::NoBrush);
+        QRectF borderRect = this->rect().adjusted(1, 1, -1, -1);
+        painter.drawRoundedRect(borderRect, _cornerRadius, _cornerRadius);
     }
 }
 
@@ -160,7 +170,13 @@ void RssItem::mousePressEvent(QMouseEvent* event) {
         if (RssItem::chosenItem == this) {
             RssItem::chosenItem = nullptr;
         } else {
+            if (RssItem::chosenItem != nullptr) {
+                if (rssData->getImage() != "") {
+                    BackImg::Instance()->updateImg(rssData->getImage());
+                }
+            }
             RssItem::chosenItem = this;
         }
     }
+    update();
 }

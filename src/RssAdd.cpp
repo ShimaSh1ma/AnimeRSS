@@ -59,25 +59,55 @@ void RssAdd::initUI() {
 
 void RssAdd::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
-        if (onAddClicked) {
-            onAddClicked();
+        mousePressed = true;
+        mouseLeftWhilePressed = false;
+        grabMouse();
+        update();
+    }
+}
+
+void RssAdd::mouseMoveEvent(QMouseEvent* event) {
+    if (mousePressed) {
+        bool inside = rect().contains(event->pos());
+        if (!inside && !mouseLeftWhilePressed) {
+            mouseLeftWhilePressed = true;
+            addNormal->show();
+            addHover->hide();
+            bgColor = normalColor;
+            update();
+        } else if (inside && mouseLeftWhilePressed) {
+            mouseLeftWhilePressed = false;
+            addNormal->hide();
+            addHover->show();
+            bgColor = hoverColor;
+            update();
         }
     }
 }
 
 void RssAdd::mouseReleaseEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
+        releaseMouse();
+        if (rect().contains(event->pos()) && onAddClicked) {
+            onAddClicked();
+        }
+        mousePressed = false;
+        mouseLeftWhilePressed = false;
+        update();
     }
 }
 
 void RssAdd::enterEvent(QEvent* event) {
-    addNormal->hide();
-    addHover->show();
-    bgColor = hoverColor;
-    update();
+    if (!mousePressed) {
+        addNormal->hide();
+        addHover->show();
+        bgColor = hoverColor;
+        update();
+    }
 }
 
 void RssAdd::leaveEvent(QEvent* event) {
+    mousePressed = false;
     addNormal->show();
     addHover->hide();
     bgColor = normalColor;

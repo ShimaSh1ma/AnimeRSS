@@ -54,6 +54,10 @@ void HttpRequest::addHttpHead(const std::initializer_list<std::pair<std::string,
     }
 }
 
+void HttpRequest::addHttpBody(const std::string& body) {
+    this->body = body;
+}
+
 std::string HttpRequest::httpRequest() {
-    return this->constructHttpLine() + this->constructHttpHead() + "\r\n";
+    return this->constructHttpLine() + this->constructHttpHead() + "\r\n" + this->body + "\r\n";
 }

@@ -26,6 +26,10 @@ MainWindow::MainWindow(QWidget* parent) : QWidget(parent) {
 
     MainWindow::initUI();
     MainWindow::createTrayIcon();
+
+    // 开启系统阴影（细边框视觉效果）
+    MARGINS shadow = {1, 1, 1, 1};
+    DwmExtendFrameIntoClientArea(HWND(winId()), &shadow);
 }
 
 bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* result) {

@@ -50,8 +50,8 @@ void RssTable::loadRssDatas() {
 void RssTable::initUI() {
     layout = new QGridLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setVerticalSpacing(2 * _borderWidth);
-    layout->setHorizontalSpacing(4 * _borderWidth);
+    // layout->setVerticalSpacing(2 * _borderWidth);
+    // layout->setHorizontalSpacing(4 * _borderWidth);
     layout->setAlignment(Qt::AlignTop);
     setLayout(layout);
 }
@@ -65,8 +65,7 @@ void RssTable::initRssAdd() {
 
 void RssTable::initRssItems() {
     for (const auto& rssData : rssList) {
-        rssItems.emplace_back(std::make_unique<RssItem>(
-            rssData.get(), std::bind(&RssTable::deleteRssData, this, std::placeholders::_1), this));
+        rssItems.emplace_back(std::make_unique<RssItem>(rssData.get(), std::bind(&RssTable::deleteRssData, this, std::placeholders::_1), this));
     }
     requestAllRss();
 }
@@ -79,9 +78,7 @@ void RssTable::requestAllRss() {
 
 void RssTable::openRssAddDialog() {
     AddDialog* addDialog = new AddDialog(this);
-    addDialog->onAddClicked = [this](const char* rssUrl, const char* savePath, const char* title) {
-        addRssData(rssUrl, savePath, title);
-    };
+    addDialog->onAddClicked = [this](const char* rssUrl, const char* savePath, const char* title) { addRssData(rssUrl, savePath, title); };
     addDialog->setAttribute(Qt::WA_DeleteOnClose, true);
     addDialog->setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint);
     addDialog->exec();
@@ -90,8 +87,7 @@ void RssTable::openRssAddDialog() {
 void RssTable::addRssData(const char* rssUrl, const char* savePath, const char* title) {
     auto newRssData = std::make_unique<RssData>(rssUrl, savePath, title);
     newRssData->requestRss();
-    rssItems.emplace_back(std::make_unique<RssItem>(
-        newRssData.get(), std::bind(&RssTable::deleteRssData, this, std::placeholders::_1), this));
+    rssItems.emplace_back(std::make_unique<RssItem>(newRssData.get(), std::bind(&RssTable::deleteRssData, this, std::placeholders::_1), this));
     rssList.push_back(std::move(newRssData));
 
     adjustLayout();
@@ -103,7 +99,7 @@ void RssTable::deleteRssData(const RssItem* item) {
             // 从布局中移除该 widget
             layout->removeWidget(rssItems[i].get());
             rssItems[i]->setParent(nullptr);
-            adjustLayout(); // 更新布局
+            adjustLayout();
 
             // 删除对应的数据和 UI
             rssItems.erase(rssItems.begin() + i);

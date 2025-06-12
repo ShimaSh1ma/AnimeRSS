@@ -2,6 +2,12 @@
 
 #include <regex>
 
+inline std::string toLower(const std::string& str) {
+    std::string result(str.size(), '\0'); // 预分配空间
+    std::transform(str.begin(), str.end(), result.begin(), [](unsigned char c) { return std::tolower(c); });
+    return result;
+}
+
 size_t HttpResponseParser::recvByChunckedData(std::string& bodyData) {
     size_t pos;
     size_t lastChunkSize = 0;
@@ -45,7 +51,7 @@ size_t HttpResponseParser::recvByContentLength(std::string& bodyData) {
 }
 
 std::string HttpResponseParser::getHttpHead(const std::string& searchHeader) {
-    auto iter = responseMap.find(searchHeader);
+    auto iter = responseMap.find(toLower(searchHeader));
     return iter == responseMap.end() ? "" : iter->second;
 }
 
@@ -55,11 +61,11 @@ void HttpResponseParser::parseResponse(const std::string& response) {
 
     if (std::regex_search(response, re, rule1)) {
         this->statusCode = re[1];
-        std::regex rule2("([A-Za-z\\-]+): ([\\S]+)\\r\\n");
+        std::regex rule2(R"(([\w\-]+):[ \t]*([^\r\n]+)\r?\n)");
         auto begin = response.cbegin();
         auto end = response.cend();
         while (std::regex_search(begin, end, re, rule2)) {
-            this->responseMap.insert(std::pair<std::string, std::string>(re[1], re[2]));
+            this->responseMap.insert(std::pair<std::string, std::string>(toLower(re[1].str()), re[2]));
             begin = re[0].second;
         }
     } else {

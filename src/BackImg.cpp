@@ -28,6 +28,7 @@ BackImg::BackImg(QWidget* parent) : QWidget(parent) {
     fadeAnim->setDuration(400);
     fadeAnim->setStartValue(0.2);
     fadeAnim->setEndValue(1.0);
+    fadeAnim->setEasingCurve(QEasingCurve::OutCubic);
 }
 
 void BackImg::updateImg(const std::string& path) {
@@ -39,14 +40,16 @@ void BackImg::updateImg(const std::string& path) {
 }
 
 void BackImg::cleanImg() {
-    image = QImage();
-    pix = QPixmap();
-    temp = QPixmap();
+    fadeOut();
     update();
 }
 
 void BackImg::fadeIn() {
-    startFade(0.0, 1.0);
+    startFade(opacity, 0.6);
+}
+
+void BackImg::fadeOut() {
+    startFade(imgOpacity, 0.0);
 }
 
 void BackImg::startFade(qreal from, qreal to) {
@@ -76,14 +79,14 @@ void BackImg::paintEvent(QPaintEvent* event) {
 
     painter.fillRect(this->rect(), QColor(30, 30, 30));
 
-    if (!pix.isNull()) {
-        painter.setOpacity(imgOpacity * 0.6);
-        painter.drawPixmap(xpos, ypos, temp);
-    }
-
     QRect titleBarRect(0, 0, this->width(), _titleBarHeight);
     QColor overlayColor(0, 0, 0, 100);
     painter.fillRect(titleBarRect, overlayColor);
+
+    if (!pix.isNull()) {
+        painter.setOpacity(imgOpacity * 0.5);
+        painter.drawPixmap(xpos, ypos, temp);
+    }
 }
 
 void BackImg::resizeEvent(QResizeEvent* event) {

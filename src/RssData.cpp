@@ -1,5 +1,6 @@
 #include "RssData.h"
 #include "Constant.h"
+#include "Qbittorrent.h"
 #include "SocketModule/ClientSocket.h"
 #include "SocketModule/HttpRequest.h"
 #include "SocketModule/UrlParser.h"
@@ -105,21 +106,24 @@ void RssData::parseRss() {
         const char* link = item->FirstChildElement("link")->GetText();
         const char* pubDate = item->FirstChildElement("pubDate")->GetText();
         const char* description = item->FirstChildElement("description")->GetText();
-        const char* enclosure = item->FirstChildElement("enclosure")->GetText();
 
-        if (title && link) {
-            if (std::any_of(body.messages.begin(), body.messages.end(), [&](const std::unique_ptr<RssMessage>& body) { return body->link == link; })) {
-                continue;
-            }
-
-            body.messages.emplace_back(std::make_unique<RssMessage>(RssMessage{
-                title ? title : "",
-                link ? link : "",
-                pubDate ? pubDate : "",
-                description ? description : "",
-                enclosure ? enclosure : "",
-            }));
+        const char* torrentUrl = nullptr;
+        auto enclosureElement = item->FirstChildElement("enclosure");
+        if (enclosureElement) {
+            torrentUrl = enclosureElement->Attribute("url");
         }
+
+        if (std::any_of(body.messages.begin(), body.messages.end(), [&](const std::unique_ptr<RssMessage>& body) { return body->torrentUrl == torrentUrl; })) {
+            continue;
+        }
+
+        body.messages.emplace_back(std::make_unique<RssMessage>(RssMessage{
+            title ? title : "",
+            link ? link : "",
+            pubDate ? pubDate : "",
+            description ? description : "",
+            torrentUrl ? torrentUrl : "",
+        }));
     }
     checkUpdate();
     saveAsJson();
@@ -207,6 +211,7 @@ void RssData::checkUpdate() {
 
     if (std::mktime(&parseRssPubDate(body.lastUpdata)) > std::mktime(&parseRssPubDate(body.lastRead))) {
         isRead = false;
+        postTorrent();
     }
 }
 
@@ -214,6 +219,18 @@ void RssData::read() {
     isRead = true;
     body.lastRead = body.lastUpdata;
     saveAsJson();
+}
+
+void RssData::postTorrent() {
+    QBittorrent& Qbit = QBittorrent::Instance();
+    for (auto& msg : body.messages) {
+        if (msg->downloaded)
+            continue;
+        Qbit.postTorrent(msg->torrentUrl, body.savePath, [&msg, this]() {
+            msg->downloaded = true;
+            saveAsJson();
+        });
+    }
 }
 
 void RssData::saveAsJson() {
@@ -237,7 +254,7 @@ void RssData::saveAsJson() {
         item["link"] = message->link;
         item["pubDate"] = message->pubDate;
         item["description"] = message->description;
-        item["enclosure"] = message->enclosure;
+        item["torrentUrl"] = message->torrentUrl;
         item["downloaded"] = message->downloaded;
         j["messages"].push_back(item);
     }
@@ -265,7 +282,7 @@ void RssData::loadFromJson(const std::string& _json) {
             message->link = item.value("link", "");
             message->pubDate = item.value("pubDate", "");
             message->description = item.value("description", "");
-            message->enclosure = item.value("enclosure", "");
+            message->torrentUrl = item.value("torrentUrl", "");
             message->downloaded = item.value("downloaded", false);
             body.messages.push_back(std::move(message));
         }

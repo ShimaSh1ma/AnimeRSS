@@ -11,7 +11,7 @@ struct RssMessage {
     std::string link;
     std::string pubDate;
     std::string description;
-    std::string enclosure;
+    std::string torrentUrl;
     bool downloaded = false;
 };
 
@@ -80,4 +80,6 @@ class RssData : public QObject {
     void parseImageUrl();
     // 请求封面图
     void requestImage();
+    // 推送到torrent下载器
+    void postTorrent();
 };

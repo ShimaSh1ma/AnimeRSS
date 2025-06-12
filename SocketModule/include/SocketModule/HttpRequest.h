@@ -22,6 +22,9 @@ class HttpRequest { // http请求报文类
     // 添加或覆盖请求行
     void addHttpHead(const std::initializer_list<std::pair<std::string, std::string>>& lst);
 
+    // 添加请求体
+    void addHttpBody(const std::string& body);
+
     // 组装http请求报文
     std::string httpRequest();
 
@@ -40,6 +43,9 @@ class HttpRequest { // http请求报文类
         // http版本,默认1.1
         std::string httpVersion = "HTTP/1.1";
     } httpLine;
+
+    // 请求体
+    std::string body = "";
 
     // 组装请求行
     std::string constructHttpLine();

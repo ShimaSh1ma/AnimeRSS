@@ -29,4 +29,4 @@ inline double _rssItemWidthMin = sizeScale(350);
 inline double _rssItemHeight = sizeScale(600);
 
 inline double _chosenOpacity = 0.1;
-inline double _unchosenOpacity = 0.7;
+inline double _unchosenOpacity = 0.8;

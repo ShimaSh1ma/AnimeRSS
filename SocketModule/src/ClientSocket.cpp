@@ -228,8 +228,7 @@ socketIndex ClientSocket::sslConnect(socketIndex& index, const std::string& targ
         char err_buf[256];
         ERR_error_string(ERR_get_error(), err_buf);
         OutputDebugStringA(err_buf);
-        // _socket.errorLog =
-        //     _M_SSL_CONNECT_ERR + std::to_string(_socket.result) + ": " + ERR_reason_error_string(ERR_get_error());
+        // _socket.errorLog = _M_SSL_CONNECT_ERR + std::to_string(_socket.result) + ": " + ERR_reason_error_string(ERR_get_error());
         deleteSocket(index);
         return index;
     }
@@ -402,7 +401,7 @@ std::unique_ptr<HttpResponseParser> ClientSocket::socketReceive(socketIndex& ind
     }
 
     if (!parser->getHttpHead("Content-Length").empty()) {
-        size_t restLength = std::numeric_limits<socketIndex>::max();
+        size_t restLength = parser->recvByContentLength(bodyData);
         while (restLength > 0) {
             _socket.result = recv(_socket.socket, recvBuffer.data(), static_cast<int>(std::min(_BUFFER_SIZE, restLength)), 0);
             if (_socket.result <= 0) {
@@ -480,7 +479,7 @@ std::unique_ptr<HttpResponseParser> ClientSocket::socketReceiveSSL(socketIndex& 
     }
 
     if (!parser->getHttpHead("Content-Length").empty()) {
-        size_t restLength = std::numeric_limits<socketIndex>::max();
+        size_t restLength = parser->recvByContentLength(bodyData);
         while (restLength > 0) {
             _socket.result = SSL_read(_socket.sslSocket, recvBuffer.data(), static_cast<int>(std::min(_BUFFER_SIZE, restLength)));
             if (_socket.result <= 0) {
