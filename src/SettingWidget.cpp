@@ -32,7 +32,8 @@ bool setAutoRun(bool enable, const std::wstring& appName) {
 
     if (enable) {
         // 设置开机自启
-        if (RegSetValueExW(hKey, appName.c_str(), 0, REG_SZ, (const BYTE*)appPath.c_str(), (appPath.size() + 1) * sizeof(wchar_t)) != ERROR_SUCCESS) {
+        if (RegSetValueExW(hKey, appName.c_str(), 0, static_cast<DWORD>(REG_SZ), (const BYTE*)appPath.c_str(),
+                           static_cast<DWORD>((appPath.size() + 1) * sizeof(wchar_t))) != ERROR_SUCCESS) {
             RegCloseKey(hKey);
             return false;
         }
@@ -153,6 +154,7 @@ void SettingWidget::initUI() {
     layout->setContentsMargins(4 * _borderWidth, 4 * _borderWidth, 8 * _borderWidth, 4 * _borderWidth);
 
     backButton = new IconButton();
+    backButton->setFixedSize(sizeScale(48), sizeScale(48));
     backButton->setIcons(QIcon(":/icons/back_normal"), QIcon(":/icons/back_hover"));
     backButton->setBackColor(Qt::transparent, Qt::transparent);
     connect(backButton, &QPushButton::clicked, this, &SettingWidget::backToMain);

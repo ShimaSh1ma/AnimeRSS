@@ -11,6 +11,8 @@ double sizeScale(int size);
 
 void saveFile(const std::string& filePathStr, const std::string& data, std::ios_base::openmode mode = std::ios::out);
 
+std::wstring utf8_to_utf16(const std::string& utf8_str);
+
 inline const char* const _closeNormalIcon = ":/icon/close_normal";
 inline const char* const _closeHoverIcon = ":/icon/close_hover";
 inline const char* const _minNormalIcon = ":/icon/min_normal";

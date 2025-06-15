@@ -122,8 +122,8 @@ void RssItem::updateContent() {
         title->setToolTip(title->text());
     }
 
-    if (std::filesystem::exists(sp->getImage())) {
-        image.load(sp->getImage().c_str());
+    if (std::filesystem::exists(utf8_to_utf16(sp->getImage()))) {
+        image.load(QString::fromUtf8(sp->getImage().c_str()));
     } else {
         image = QImage(QSize(this->width(), this->height()), QImage::Format_RGB32);
         image.fill(Qt::gray);
@@ -228,7 +228,7 @@ void RssItem::enterEvent(QEvent* event) {
     title->setVisible(false);
     if (RssItem::chosenItem == nullptr) {
         if (auto sp = rssData.lock()) {
-            if (std::filesystem::exists(sp->getImage())) {
+            if (std::filesystem::exists(utf8_to_utf16(sp->getImage()))) {
                 BackImg::Instance()->updateImg(sp->getImage());
             }
         }

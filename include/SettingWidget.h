@@ -10,7 +10,7 @@
 
 class IconButton;
 class TitleLabel;
-class SettingConfig;
+struct SettingConfig;
 
 class SettingWidget : public QWidget {
   public:

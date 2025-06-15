@@ -33,9 +33,9 @@ BackImg::BackImg(QWidget* parent) : QWidget(parent) {
 }
 
 void BackImg::updateImg(const std::string& path) {
-    if (!std::filesystem::exists(path))
+    if (!std::filesystem::exists(utf8_to_utf16(path)))
         return;
-    image.load(path.c_str());
+    image.load(QString::fromUtf8(path.c_str()));
     pix = QPixmap::fromImage(image);
     stretchImage();
     update();

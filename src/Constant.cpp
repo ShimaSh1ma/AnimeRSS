@@ -4,6 +4,9 @@
 #include <QtGlobal>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
+#include <string>
+#include <windows.h>
 
 static double ResizeRate = 1.0;
 
@@ -33,30 +36,36 @@ double sizeScale(int size) {
     return size * ResizeRate;
 }
 
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-#include <string>
+std::wstring utf8_to_utf16(const std::string& utf8_str) {
+    if (utf8_str.empty())
+        return L"";
+
+    int size_needed = MultiByteToWideChar(CP_UTF8, 0, utf8_str.c_str(), (int)utf8_str.size(), nullptr, 0);
+    std::wstring utf16_str(size_needed, 0);
+    MultiByteToWideChar(CP_UTF8, 0, utf8_str.c_str(), (int)utf8_str.size(), &utf16_str[0], size_needed);
+    return utf16_str;
+}
 
 void saveFile(const std::string& filePathStr, const std::string& data, std::ios_base::openmode mode) {
     try {
-        std::filesystem::path filePath(filePathStr);
+        std::wstring widePath = utf8_to_utf16(filePathStr);
+        std::filesystem::path filePath(widePath);
+
         std::filesystem::path directory = filePath.parent_path();
 
-        // 创建目录（如果不存在）
         if (!directory.empty() && !std::filesystem::exists(directory)) {
             std::filesystem::create_directories(directory);
         }
 
-        // 打开文件写入
-        std::ofstream out(filePath, mode);
+        std::ofstream out;
+        out.open(filePath.wstring(), mode);
+
         if (!out) {
             std::cerr << "Failed to open file: " << filePath << std::endl;
             return;
         }
 
         out << data;
-        out.close(); // 可省略，RAII 会自动关闭
     } catch (const std::exception& ex) {
         std::cerr << "Exception in saveFile: " << ex.what() << std::endl;
     }

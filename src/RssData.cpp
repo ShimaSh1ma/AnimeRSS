@@ -273,11 +273,12 @@ std::string RssData::getTimeStamp() {
 }
 
 void RssData::setImage(const std::string& path) {
-    if (!std::filesystem::exists(path))
+    if (!std::filesystem::exists(utf8_to_utf16(path)))
         return;
-    std::string targetPath = this->getImage() + std::filesystem::path(path).extension().string();
-    if (std::filesystem::copy_file(path, targetPath, std::filesystem::copy_options::overwrite_existing)) {
-        body.imagePath = targetPath;
+    std::filesystem::path targetPath = this->getImage();
+    targetPath.replace_extension(std::filesystem::path(path).extension());
+    if (std::filesystem::copy_file(utf8_to_utf16(path), utf8_to_utf16(targetPath.string()), std::filesystem::copy_options::overwrite_existing)) {
+        body.imagePath = targetPath.string();
         saveAsJson();
     }
 }
