@@ -11,23 +11,32 @@ TitleBar::TitleBar(QWidget* parent) : QWidget(parent) {
     layout->setSpacing(0);
     layout->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 
+    settingButton = new IconButton();
     minimizeButton = new IconButton();
     closeButton = new IconButton();
 
+    settingButton->setIcons(QIcon(":/icons/setting_normal"), QIcon(":/icons/setting_hover"));
     minimizeButton->setIcons(QIcon(":/icons/minimize_normal"), QIcon(":/icons/minimize_hover"));
     closeButton->setIcons(QIcon(":/icons/close_normal"), QIcon(":/icons/close_hover"));
 
+    settingButton->setBackColor(Qt::transparent, Qt::gray);
     minimizeButton->setBackColor(Qt::transparent, Qt::gray);
     closeButton->setBackColor(Qt::transparent, Qt::red);
 
     layout->addStretch();
+    layout->addWidget(settingButton);
     layout->addWidget(minimizeButton);
     layout->addWidget(closeButton);
 
+    connect(settingButton, &IconButton::clicked, this, &TitleBar::settingClicked);
     connect(minimizeButton, &IconButton::clicked, this, &TitleBar::minimizeClicked);
     connect(closeButton, &IconButton::clicked, this, &TitleBar::closeClicked);
 
     setLayout(layout);
+}
+
+QRect TitleBar::getSettingButtonRect() const {
+    return settingButton->geometry();
 }
 
 QRect TitleBar::getMinimizeButtonRect() const {
@@ -36,6 +45,12 @@ QRect TitleBar::getMinimizeButtonRect() const {
 
 QRect TitleBar::getCloseButtonRect() const {
     return closeButton->geometry();
+}
+
+void TitleBar::settingClicked() {
+    if (openSettingFunction) {
+        openSettingFunction();
+    }
 }
 
 void TitleBar::minimizeClicked() {

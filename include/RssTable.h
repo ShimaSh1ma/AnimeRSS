@@ -1,7 +1,9 @@
 #pragma once
 
+#include <QTimer>
 #include <QWidget>
 #include <memory>
+#include <shared_mutex>
 #include <vector>
 
 class QGridLayout;
@@ -20,7 +22,11 @@ class RssTable : public QWidget {
   private:
     void initRssAdd();
 
-    std::vector<std::unique_ptr<RssData>> rssList;
+    std::unique_ptr<QTimer> rssTimer;
+
+    std::vector<std::shared_ptr<RssData>> rssList;
+    std::shared_mutex rssListMutex;
+
     std::vector<std::unique_ptr<QWidget>> rssItems;
 
     QGridLayout* layout;
@@ -31,6 +37,7 @@ class RssTable : public QWidget {
     void requestAllRss();
     void init();
 
+    void clearLayout();
     void caculateColumn();
     int column = 0; // 当前列数
     void adjustLayout();

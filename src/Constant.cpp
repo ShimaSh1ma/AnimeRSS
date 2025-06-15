@@ -1,5 +1,4 @@
 #include "Constant.h"
-#include "Codec.h"
 #include <QGuiApplication>
 #include <QScreen>
 #include <QtGlobal>

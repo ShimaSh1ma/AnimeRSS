@@ -4,13 +4,18 @@
 #include "RssAdd.h"
 #include "RssData.h"
 #include "RssItem.h"
+#include "RssRequestScheduler.h"
 #include <QDebug>
 #include <QGridLayout>
+#include <QMessageBox>
 #include <filesystem>
 #include <functional>
 
 RssTable::RssTable(QWidget* parent) : QWidget(parent) {
     init();
+    rssTimer = std::make_unique<QTimer>();
+    connect(rssTimer.get(), &QTimer::timeout, this, &RssTable::requestAllRss);
+    rssTimer->start(10 * 60 * 1000);
 }
 
 void RssTable::init() {
@@ -38,7 +43,6 @@ void RssTable::loadRssDatas() {
                 }
 
                 std::string content((std::istreambuf_iterator<char>(inFile)), std::istreambuf_iterator<char>());
-
                 auto rssData = std::make_unique<RssData>();
                 rssData->loadFromJson(content);
                 rssList.push_back(std::move(rssData));
@@ -50,8 +54,6 @@ void RssTable::loadRssDatas() {
 void RssTable::initUI() {
     layout = new QGridLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-    // layout->setVerticalSpacing(2 * _borderWidth);
-    // layout->setHorizontalSpacing(4 * _borderWidth);
     layout->setAlignment(Qt::AlignTop);
     setLayout(layout);
 }
@@ -64,15 +66,17 @@ void RssTable::initRssAdd() {
 }
 
 void RssTable::initRssItems() {
+    std::shared_lock lock(rssListMutex);
     for (const auto& rssData : rssList) {
-        rssItems.emplace_back(std::make_unique<RssItem>(rssData.get(), std::bind(&RssTable::deleteRssData, this, std::placeholders::_1), this));
+        rssItems.emplace_back(std::make_unique<RssItem>(rssData, std::bind(&RssTable::deleteRssData, this, std::placeholders::_1), this));
     }
     requestAllRss();
 }
 
 void RssTable::requestAllRss() {
+    std::shared_lock lock(rssListMutex);
     for (const auto& rssData : rssList) {
-        rssData->requestRss();
+        RssRequestScheduler::instance().addTask(rssData);
     }
 }
 
@@ -80,56 +84,89 @@ void RssTable::openRssAddDialog() {
     AddDialog* addDialog = new AddDialog(this);
     addDialog->onAddClicked = [this](const char* rssUrl, const char* savePath, const char* title) { addRssData(rssUrl, savePath, title); };
     addDialog->setAttribute(Qt::WA_DeleteOnClose, true);
-    addDialog->setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint);
     addDialog->exec();
 }
 
 void RssTable::addRssData(const char* rssUrl, const char* savePath, const char* title) {
-    auto newRssData = std::make_unique<RssData>(rssUrl, savePath, title);
-    newRssData->requestRss();
-    rssItems.emplace_back(std::make_unique<RssItem>(newRssData.get(), std::bind(&RssTable::deleteRssData, this, std::placeholders::_1), this));
-    rssList.push_back(std::move(newRssData));
-
+    auto newRssData = std::make_shared<RssData>(rssUrl, savePath, title);
+    RssRequestScheduler::instance().addTask(newRssData);
+    rssItems.emplace_back(std::make_unique<RssItem>(newRssData, std::bind(&RssTable::deleteRssData, this, std::placeholders::_1), this));
+    std::unique_lock lock(rssListMutex);
+    rssList.push_back(newRssData);
     adjustLayout();
 }
 
 void RssTable::deleteRssData(const RssItem* item) {
+    QMessageBox msgBox;
+    msgBox.setWindowTitle(tr("Confirm"));
+    msgBox.setText(tr("Removing this RSS subscription cannot be undone."));
+    msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+    msgBox.setIcon(QMessageBox::Question);
+
+    msgBox.setWindowFlags(Qt::Dialog | Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowSystemMenuHint | Qt::WindowCloseButtonHint);
+    msgBox.setWindowIcon(QIcon());
+
+    QMessageBox::StandardButton reply = static_cast<QMessageBox::StandardButton>(msgBox.exec());
+
+    if (reply != QMessageBox::Yes) {
+        return;
+    }
+
     for (size_t i = 0; i < rssItems.size(); ++i) {
         if (rssItems[i].get() == item) {
             // 从布局中移除该 widget
             layout->removeWidget(rssItems[i].get());
             rssItems[i]->setParent(nullptr);
+            rssItems.erase(rssItems.begin() + i);
             adjustLayout();
 
-            // 删除对应的数据和 UI
-            rssItems.erase(rssItems.begin() + i);
-            rssList[i - 1]->deleteData();
-            rssList.erase(rssList.begin() + i - 1);
+            std::thread([this, i]() {
+                std::unique_lock lock(rssListMutex);
+                rssList[i - 1]->deleteData();
+                rssList.erase(rssList.begin() + i - 1);
+            }).detach();
             break;
         }
     }
 }
 
 void RssTable::caculateColumn() {
-    // 当前列数对应的窗口长度区间
-    int maxLength = (this->column + 1) * _rssItemWidthMin // 上限
-                    + this->column * this->layout->horizontalSpacing();
-    int minLength = this->column * _rssItemWidthMin // 下限
-                    + (this->column - 1) * this->layout->horizontalSpacing();
+    int maxLength = (this->column + 1) * _rssItemWidthMin + this->column * this->layout->horizontalSpacing();
+    int minLength = this->column * _rssItemWidthMin + (this->column - 1) * this->layout->horizontalSpacing();
 
-    // 超出区间则更新列数
     if (this->width() < minLength || this->width() > maxLength) {
-        this->column = this->size().width() / (_rssItemWidthMin + this->layout->horizontalSpacing());
-        if (this->column == 0) {
-            this->column = 1;
+        int newColumn = this->size().width() / (_rssItemWidthMin + this->layout->horizontalSpacing());
+        if (newColumn == 0) {
+            newColumn = 1;
         }
-        adjustLayout();
+        if (newColumn > static_cast<int>(rssItems.size())) {
+            newColumn = static_cast<int>(rssItems.size());
+        }
+
+        if (newColumn != this->column) {
+            this->column = newColumn;
+            adjustLayout();
+        }
+    }
+}
+
+void RssTable::clearLayout() {
+    if (!layout)
+        return;
+    while (QLayoutItem* item = layout->takeAt(0)) {
+        if (QWidget* widget = item->widget()) {
+            layout->removeWidget(widget);
+        }
+        delete item;
     }
 }
 
 void RssTable::adjustLayout() {
-    delete layout;
-    initUI();
+    clearLayout();
+
+    for (int c = 0; c < this->column; c++) {
+        layout->setColumnStretch(c, 1);
+    }
 
     int _row = 0, _column = 0;
     for (auto& it : this->rssItems) {

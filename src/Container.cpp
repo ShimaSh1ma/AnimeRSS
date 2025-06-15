@@ -19,7 +19,7 @@ void Container::initUI() {
 
     // 设置布局
     layout->addWidget(scrollArea, 0, 0);
-    layout->setContentsMargins(3 * _borderWidth, _borderWidth, 3 * _borderWidth, 3 * _borderWidth);
+    layout->setContentsMargins(3 * _borderWidth, 2 * _borderWidth, 3 * _borderWidth, 3 * _borderWidth);
     layout->setSpacing(0);
     scrollArea->setWidget(rssTable);
     scrollArea->setWidgetResizable(true);
@@ -32,6 +32,6 @@ void Container::initUI() {
 void Container::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
     if (rssTable) {
-        rssTable->setFixedWidth(this->width() - 6 * _borderWidth); // 设置 RSS 表格的宽度
+        rssTable->setFixedWidth(this->width() - 6 * _borderWidth);
     }
 }

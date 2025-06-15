@@ -52,14 +52,14 @@ if(APPLE)
             MACOSX_PACKAGE_LOCATION "Resources")
     add_executable(${PROJECT_NAME} MACOSX_BUNDLE ${SOURCES} ${HEADERS} ${RESOURCES} ${APP_ICON_PATH})
 elseif(MSVC)
-    # # 设置 .rc 文件路径
-    # set(RC_FILE "${CMAKE_CURRENT_SOURCE_DIR}/resource/icon/resource.rc")
-    # # 使用自定义命令来编译 .rc 文件为资源对象文件 (.o)
-    # add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/resource.o
-    #     COMMAND ${CMAKE_RC_COMPILER} /fo ${CMAKE_BINARY_DIR}/resource.o ${RC_FILE}
-    #     DEPENDS ${RC_FILE})
-    # add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS} ${RESOURCES} ${APP_ICON_PATH} ${CMAKE_BINARY_DIR}/resource.o)
-    add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS} ${RESOURCES})
+    # 设置 .rc 文件路径
+    set(RC_FILE "${CMAKE_CURRENT_SOURCE_DIR}/resources/resources.rc")
+    # 使用自定义命令来编译 .rc 文件为资源对象文件 (.o)
+    add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/resource.o
+        COMMAND ${CMAKE_RC_COMPILER} /fo ${CMAKE_BINARY_DIR}/resource.o ${RC_FILE}
+        DEPENDS ${RC_FILE})
+    add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS} ${RESOURCES} ${APP_ICON_PATH} ${CMAKE_BINARY_DIR}/resource.o)
+    # add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS} ${RESOURCES})
 endif()
 
 target_include_directories(${PROJECT_NAME}

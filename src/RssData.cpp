@@ -1,12 +1,14 @@
 #include "RssData.h"
 #include "Constant.h"
 #include "Qbittorrent.h"
+#include "SettingConfig.h"
 #include "SocketModule/ClientSocket.h"
 #include "SocketModule/HttpRequest.h"
 #include "SocketModule/UrlParser.h"
+#include "WinToast.h"
 #include "tinyxml2.h"
-#include <QElapsedTimer>
-#include <QTimer>
+
+#include <codecvt>
 #include <ctime>
 #include <fstream>
 #include <iostream>
@@ -15,6 +17,7 @@
 #include <sstream>
 
 using json = nlohmann::json;
+using namespace GlobalConfig;
 
 inline std::tm parseRssPubDate(const std::string& pubDateStr) {
     std::tm tm = {};
@@ -33,7 +36,7 @@ RssData::RssData(const char* url, const char* savePath, const char* title) {
     body.url = url;
     body.savePath = savePath;
     body.title = title;
-    jsonPath = R"(.\rss\)" + body.title + ".json";
+    setTimeStamp();
     saveAsJson();
 }
 
@@ -42,52 +45,71 @@ std::string RssData::getTitle() {
 }
 
 std::string RssData::getImage() {
-    return body.imagePath;
+    return body.imagePath.empty() ? "./Preface/" + this->getTitle() + "_" + body.timeStamp : body.imagePath;
 }
 
 std::string RssData::getUrl() {
     return body.url;
 }
 
+std::string RssData::getSavePath() {
+    return body.savePath;
+}
+
 void RssData::requestRss() {
-    if (isRequesting)
+    bool expected = false;
+    if (!isRequesting.compare_exchange_strong(expected, true)) {
         return;
-    isRequesting = true;
+    }
+    auto self = shared_from_this();
 
     auto uP = std::make_unique<UrlParser>();
     uP->parseUrl(body.url);
 
     auto req = std::make_unique<HttpRequest>();
     req->setUrl(*uP);
-    req->addHttpHead({
-        {"Connection", "close"},
-    });
+    req->addHttpHead({{"Connection", "close"}});
 
-    rssFuture = ClientSocket::asyncRequestProxy("127.0.0.1", "7890", uP->host, "443", req->httpRequest());
+    // 异步请求，返回future
+    if (GlobalConfig::config.enableHttpProxy) {
+        rssFuture = ClientSocket::asyncRequestProxy(config.proxyAddress, std::to_string(config.proxyPort), uP->host, "443", req->httpRequest());
+    } else {
+        rssFuture = ClientSocket::asyncRequest(uP->host, "443", req->httpRequest());
+    }
 
-    QTimer* timer = new QTimer();
-    QElapsedTimer* elapsed = new QElapsedTimer();
-    elapsed->start();
+    std::thread([self]() {
+        const int timeoutMs = 30000;
+        auto start = std::chrono::steady_clock::now();
 
-    timer->setInterval(500);
-    connect(timer, &QTimer::timeout, this, [this, timer, elapsed]() {
-        if (rssFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-            timer->stop();
-            timer->deleteLater();
-            delete elapsed;
+        while (true) {
+            auto status = self->rssFuture.wait_for(std::chrono::milliseconds(100));
+            if (status == std::future_status::ready) {
+                try {
+                    self->body.originRssHtml = self->rssFuture.get();
+                } catch (...) {
+                    self->body.originRssHtml.clear();
+                }
 
-            body.originRssHtml = rssFuture.get();
-            parseRss();
-            isRequesting = false;
-        } else if (elapsed->elapsed() > 1000 * 60) {
-            timer->stop();
-            timer->deleteLater();
-            delete elapsed;
-            isRequesting = false;
+                self->isRequesting = false;
+
+                if (!self->body.originRssHtml.empty()) {
+                    self->parseRss();
+                }
+
+                if (self->callScheduler)
+                    self->callScheduler();
+                break;
+            }
+            auto now = std::chrono::steady_clock::now();
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count() > timeoutMs) {
+                self->isRequesting = false;
+                if (self->callScheduler)
+                    self->callScheduler();
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
-    });
-
-    timer->start();
+    }).detach();
 }
 
 void RssData::parseRss() {
@@ -101,7 +123,11 @@ void RssData::parseRss() {
         return;
     }
 
-    for (tinyxml2::XMLElement* item = root->FirstChildElement("channel")->FirstChildElement("item"); item != nullptr; item = item->NextSiblingElement("item")) {
+    auto* channel = root->FirstChildElement("channel");
+    if (!channel)
+        return;
+
+    for (tinyxml2::XMLElement* item = channel->FirstChildElement("item"); item != nullptr; item = item->NextSiblingElement("item")) {
         const char* title = item->FirstChildElement("title")->GetText();
         const char* link = item->FirstChildElement("link")->GetText();
         const char* pubDate = item->FirstChildElement("pubDate")->GetText();
@@ -154,50 +180,60 @@ void RssData::parseImageUrl() {
 }
 
 void RssData::requestImage() {
-    if (isImageRequesting)
-        return;
-    isImageRequesting = true;
+    bool expected = false;
+    if (!isImageRequesting.compare_exchange_strong(expected, true)) {
+        return; // 已经在请求图片，直接返回
+    }
+    auto self = shared_from_this();
 
     auto uP = std::make_unique<UrlParser>();
     uP->parseUrl(body.imageUrl);
 
     auto req = std::make_unique<HttpRequest>();
     req->setUrl(*uP);
-    req->addHttpHead({{"", ""}, {"", ""}});
+    req->addHttpHead({{"connection", "close"}, {"", ""}});
 
-    imageFuture = ClientSocket::asyncRequestProxy("127.0.0.1", "7890", uP->host, "443", req->httpRequest());
+    if (GlobalConfig::config.enableHttpProxy) {
+        imageFuture = ClientSocket::asyncRequestProxy(config.proxyAddress, std::to_string(config.proxyPort), uP->host, "443", req->httpRequest());
+    } else {
+        imageFuture = ClientSocket::asyncRequest(uP->host, "443", req->httpRequest());
+    }
 
-    std::string fileName = uP->fileName + uP->fileExtension;
+    std::thread([self, uP = std::move(uP)]() mutable {
+        const int timeoutMs = 30000;
+        auto start = std::chrono::steady_clock::now();
 
-    QTimer* timer = new QTimer();
-    QElapsedTimer* elapsed = new QElapsedTimer();
-    elapsed->start();
+        std::string fileName = uP->fileExtension.empty() ? "" : uP->fileName + self->body.timeStamp + uP->fileExtension;
 
-    timer->setInterval(500);
-    connect(timer, &QTimer::timeout, this, [this, timer, elapsed, fileName]() {
-        if (imageFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-            timer->stop();
-            timer->deleteLater();
-            delete elapsed;
-
-            std::string image = imageFuture.get();
-            if (!image.empty()) {
-                body.imagePath = "./Preface/" + fileName;
-                saveFile(body.imagePath, image, std::ios::binary);
-                saveAsJson();
-                if (updateUI) {
-                    updateUI();
+        while (true) {
+            auto status = self->imageFuture.wait_for(std::chrono::milliseconds(100));
+            if (status == std::future_status::ready) {
+                try {
+                    std::string image = self->imageFuture.get();
+                    if (!image.empty()) {
+                        self->body.imagePath = fileName.empty() ? self->getImage() : ("./Preface/" + fileName);
+                        saveFile(self->body.imagePath, image, std::ios::binary);
+                        self->saveAsJson();
+                        if (self->updateUI) {
+                            self->updateUI();
+                        }
+                    }
+                } catch (...) {
                 }
+
+                self->isImageRequesting = false;
+                break;
             }
-            isImageRequesting = false;
-        } else if (elapsed->elapsed() > 1000 * 60) {
-            timer->stop();
-            timer->deleteLater();
-            delete elapsed;
-            isImageRequesting = false;
+
+            auto now = std::chrono::steady_clock::now();
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count() > timeoutMs) {
+                self->isImageRequesting = false;
+                break;
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
-    });
-    timer->start();
+    }).detach();
 }
 
 void RssData::checkUpdate() {
@@ -209,16 +245,51 @@ void RssData::checkUpdate() {
         }
     }
 
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+
     if (std::mktime(&parseRssPubDate(body.lastUpdata)) > std::mktime(&parseRssPubDate(body.lastRead))) {
+        std::wstring titleW = converter.from_bytes(body.title);
+        namespace fs = std::filesystem;
+        std::wstring absImagePath = fs::absolute(fs::path(converter.from_bytes(body.imagePath))).wstring();
+
+        showWinToastNotification(titleW, L"has update!", absImagePath);
+
         isRead = false;
         postTorrent();
     }
 }
 
-void RssData::read() {
+void RssData::setTimeStamp() {
+    if (body.timeStamp.empty()) {
+        auto now = std::chrono::system_clock::now();
+        auto epoch_seconds = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
+        body.timeStamp = std::to_string(epoch_seconds);
+        jsonPath = R"(.\rss\)" + body.title + "_" + body.timeStamp + ".json";
+    }
+}
+
+std::string RssData::getTimeStamp() {
+    return body.timeStamp;
+}
+
+void RssData::setImage(const std::string& path) {
+    if (!std::filesystem::exists(path))
+        return;
+    std::string targetPath = this->getImage() + std::filesystem::path(path).extension().string();
+    if (std::filesystem::copy_file(path, targetPath, std::filesystem::copy_options::overwrite_existing)) {
+        body.imagePath = targetPath;
+        saveAsJson();
+    }
+}
+
+void RssData::setRead() {
     isRead = true;
     body.lastRead = body.lastUpdata;
     saveAsJson();
+}
+
+bool RssData::getRead() {
+    return this->isRead;
 }
 
 void RssData::postTorrent() {
@@ -234,6 +305,8 @@ void RssData::postTorrent() {
 }
 
 void RssData::saveAsJson() {
+    if (isDeleted)
+        return;
     json j;
     j["url"] = body.url;
     j["savePath"] = body.savePath;
@@ -242,6 +315,7 @@ void RssData::saveAsJson() {
     j["imagePath"] = body.imagePath;
     j["lastUpdata"] = body.lastUpdata;
     j["lastRead"] = body.lastRead;
+    j["timeStamp"] = body.timeStamp;
     j["isRead"] = isRead;
 
     j["messages"] = json::array();
@@ -272,6 +346,7 @@ void RssData::loadFromJson(const std::string& _json) {
     body.imagePath = j.value("imagePath", "");
     body.lastUpdata = j.value("lastUpdata", "");
     body.lastRead = j.value("lastRead", "");
+    body.timeStamp = j.value("timeStamp", "");
     isRead = j.value("isRead", false);
 
     body.messages.clear();
@@ -288,10 +363,11 @@ void RssData::loadFromJson(const std::string& _json) {
         }
     }
 
-    jsonPath = R"(.\rss\)" + body.title + ".json";
+    jsonPath = R"(.\rss\)" + body.title + "_" + body.timeStamp + ".json";
 }
 
 void RssData::deleteData() {
+    isDeleted.store(true);
     if (std::filesystem::exists(jsonPath)) {
         try {
             std::filesystem::remove(jsonPath);

@@ -25,8 +25,10 @@ inline double _iconSize = sizeScale(38);
 inline double _tableSpacing = 2 * _borderWidth;
 
 inline double _rssItemWidthMax = sizeScale(450);
-inline double _rssItemWidthMin = sizeScale(350);
+inline double _rssItemWidthMin = sizeScale(400);
 inline double _rssItemHeight = sizeScale(600);
 
 inline double _chosenOpacity = 0.1;
 inline double _unchosenOpacity = 0.8;
+
+constexpr double _settingWidth = 3.0 / 8.0;

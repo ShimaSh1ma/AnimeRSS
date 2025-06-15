@@ -1,3 +1,5 @@
+#pragma once
+
 #include <atomic>
 #include <functional>
 #include <queue>
@@ -9,11 +11,6 @@ class QBittorrent {
     QBittorrent();
 
     std::string cookie;
-    std::string host;
-    std::string port;
-
-    std::string admin;
-    std::string password;
 
     std::queue<std::tuple<std::string, std::string, std::function<void()>>> torrentQueue;
 

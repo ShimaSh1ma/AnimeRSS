@@ -3,6 +3,7 @@
 #include "Constant.h"
 #include <QWidget>
 #include <functional>
+#include <memory>
 
 class QLabel;
 class RssData;
@@ -11,17 +12,17 @@ class QPushButton;
 class IconButton;
 
 class RssItem : public QWidget {
-
+    Q_OBJECT
   public:
-    explicit RssItem(RssData* data, std::function<void(RssItem*)> deleteFunction, QWidget* parent = nullptr);
+    explicit RssItem(std::shared_ptr<RssData> data, std::function<void(RssItem*)> deleteFunction, QWidget* parent = nullptr);
     ~RssItem() = default;
 
   protected:
     void paintEvent(QPaintEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
-    void mousePressEvent(QMouseEvent* event) override;
     void enterEvent(QEvent* event) override;
     void leaveEvent(QEvent* event) override;
+    void mouseDoubleClickEvent(QMouseEvent* event) override;
 
   private:
     static void* chosenItem;
@@ -29,16 +30,19 @@ class RssItem : public QWidget {
     bool mouseIn = false;
 
     void initUI();
-    void updateContent();
+    Q_INVOKABLE void updateContent();
+
+    void replacePreview();
 
     std::function<void(RssItem*)> deleteFunction;
 
     QLabel* title;
     QImage image;
-    RssData* rssData;
+    std::weak_ptr<RssData> rssData;
 
     IconButton* deleteButton;
     IconButton* refreshButton;
+    IconButton* previewButton;
 
     QVBoxLayout* layout;
 

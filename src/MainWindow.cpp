@@ -1,8 +1,9 @@
 #include "MainWindow.h"
 #include "BackImg.h"
-#include "Codec.h"
 #include "Constant.h"
 #include "Container.h"
+#include "SettingWidget.h"
+#include "StackedWidget.h"
 #include "TitleBar.h"
 #include <QAction>
 #include <QApplication>
@@ -22,7 +23,7 @@
 
 MainWindow::MainWindow(QWidget* parent) : QWidget(parent) {
     setAttribute(Qt::WA_TranslucentBackground);
-    resize(sizeScale(800), sizeScale(600));
+    setMinimumSize(sizeScale(800), sizeScale(600));
 
     MainWindow::initUI();
     MainWindow::createTrayIcon();
@@ -56,10 +57,11 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* r
         if (localPos.y() < _titleBarHeight + _borderWidth && localPos.y() >= _borderWidth && localPos.x() >= _borderWidth &&
             localPos.x() < this->width() - _borderWidth) {
             if (titleBar) {
+                QRect settingButtonRect = titleBar->getSettingButtonRect();
                 QRect minimizeButtonRect = titleBar->getMinimizeButtonRect();
                 QRect closeButtonRect = titleBar->getCloseButtonRect();
 
-                if (minimizeButtonRect.contains(localPos) || closeButtonRect.contains(localPos)) {
+                if (minimizeButtonRect.contains(localPos) || closeButtonRect.contains(localPos) || settingButtonRect.contains(localPos)) {
                     *result = HTCLIENT;
                     return true;
                 }
@@ -103,10 +105,11 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* r
 
         if (localPos.y() < _titleBarHeight) {
             if (titleBar) {
+                QRect settingButtonRect = titleBar->getSettingButtonRect();
                 QRect minimizeButtonRect = titleBar->getMinimizeButtonRect();
                 QRect closeButtonRect = titleBar->getCloseButtonRect();
 
-                if (!minimizeButtonRect.contains(localPos) && !closeButtonRect.contains(localPos)) {
+                if (!minimizeButtonRect.contains(localPos) && !closeButtonRect.contains(localPos) && !settingButtonRect.contains(localPos)) {
                     if (IsZoomed(reinterpret_cast<HWND>(winId()))) {
                         ShowWindow(reinterpret_cast<HWND>(winId()), SW_RESTORE);
                     } else {
@@ -125,7 +128,7 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* r
 
 void MainWindow::createTrayIcon() {
     trayIcon = new QSystemTrayIcon(this);
-    trayIcon->setIcon(QIcon(":/icons/close_normal"));
+    trayIcon->setIcon(QIcon(":/icons/AnimeRss_main"));
     trayIcon->setToolTip("AnimeRSS");
 
     QMenu* trayMenu = new QMenu(this);
@@ -151,12 +154,14 @@ void MainWindow::createTrayIcon() {
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
-    // if (trayIcon && trayIcon->isVisible()) {
-    //     hide();
-    //     event->ignore();
-    // } else {
-    //     event->accept();
-    // }
+    if (trayIcon && trayIcon->isVisible()) {
+        BackImg::Instance()->removeImg();
+        hide();
+        event->ignore();
+    } else {
+        event->accept();
+        settingWidget->close();
+    }
 }
 
 void MainWindow::resizeEvent(QResizeEvent* event) {
@@ -176,11 +181,28 @@ void MainWindow::initUI() {
     mainLayout->setSpacing(0);
     mainLayout->setAlignment(Qt::AlignTop);
 
+    initStackedWidget();
     initBackImg();
     initTitleBar();
     initContainer();
+    initSettingWidget();
+
+    int mainIndex = stackedWidget->addWidget(container);
+    int sIndex = stackedWidget->addWidget(settingWidget);
+    mainLayout->addWidget(stackedWidget);
+
+    titleBar->openSettingFunction = [this, sIndex]() {
+        if (stackedWidget->currentIndex() != sIndex)
+            stackedWidget->switchWidget(sIndex);
+    };
+    settingWidget->closeClicked = [this, mainIndex]() { stackedWidget->switchWidget(mainIndex); };
 
     setLayout(mainLayout);
+}
+
+void MainWindow::initStackedWidget() {
+    stackedWidget = new StackedWidget();
+    stackedWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 }
 
 void MainWindow::initTitleBar() {
@@ -192,7 +214,11 @@ void MainWindow::initTitleBar() {
 void MainWindow::initContainer() {
     container = new Container(this);
     container->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    mainLayout->addWidget(container);
+}
+
+void MainWindow::initSettingWidget() {
+    settingWidget = new SettingWidget();
+    settingWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 }
 
 void MainWindow::initBackImg() {

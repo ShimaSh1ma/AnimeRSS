@@ -1,10 +1,22 @@
 <RCC>
     <qresource prefix="/icons">
+        <file alias="AnimeRss_main">AnimeRss.png</file>
+
         <file alias="close_normal">icon/close_black.png</file>
         <file alias="close_hover">icon/close_white.png</file>
         <file alias="minimize_normal">icon/minimize_black.png</file>
         <file alias="minimize_hover">icon/minimize_white.png</file>
         <file alias="add_normal">icon/add_black.png</file>
         <file alias="add_hover">icon/add_white.png</file>
+        <file alias="delete_normal">icon/delete_black.png</file>
+        <file alias="delete_hover">icon/delete_red.png</file>
+        <file alias="refresh_normal">icon/refresh_black.png</file>
+        <file alias="refresh_hover">icon/refresh_white.png</file>
+        <file alias="back_hover">icon/back_gray.png</file>
+        <file alias="back_normal">icon/back_white.png</file>
+        <file alias="setting_hover">icon/setting_white.png</file>
+        <file alias="setting_normal">icon/setting_black.png</file>
+        <file alias="image_hover">icon/image_white.png</file>
+        <file alias="image_normal">icon/image_black.png</file>
     </qresource>
 </RCC>

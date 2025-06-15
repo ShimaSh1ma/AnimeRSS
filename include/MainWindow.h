@@ -3,12 +3,15 @@
 #include <IconButton.h>
 #include <QCloseEvent>
 #include <QLayout>
+#include <QStackedLayout>
 #include <QSystemTrayIcon>
 #include <QWidget>
 
 class BackImg;
 class TitleBar;
 class Container;
+class SettingWidget;
+class StackedWidget;
 
 class MainWindow : public QWidget {
     Q_OBJECT
@@ -23,6 +26,9 @@ class MainWindow : public QWidget {
     void closeEvent(QCloseEvent* event) override;
 
   private:
+    StackedWidget* stackedWidget;
+    void initStackedWidget();
+
     void createTrayIcon();
     QSystemTrayIcon* trayIcon;
 
@@ -34,6 +40,9 @@ class MainWindow : public QWidget {
 
     Container* container;
     void initContainer();
+
+    SettingWidget* settingWidget;
+    void initSettingWidget();
 
     BackImg* backImg;
     void initBackImg();

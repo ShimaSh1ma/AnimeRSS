@@ -225,10 +225,7 @@ socketIndex ClientSocket::sslConnect(socketIndex& index, const std::string& targ
             deleteSocket(index);
             return index;
         }
-        char err_buf[256];
-        ERR_error_string(ERR_get_error(), err_buf);
-        OutputDebugStringA(err_buf);
-        // _socket.errorLog = _M_SSL_CONNECT_ERR + std::to_string(_socket.result) + ": " + ERR_reason_error_string(ERR_get_error());
+        _socket.errorLog = _M_SSL_CONNECT_ERR + std::to_string(_socket.result);
         deleteSocket(index);
         return index;
     }
@@ -619,35 +616,44 @@ std::future<std::string> ClientSocket::asyncRequestProxy(const std::string& prox
                                                          const std::string& targetPort, const std::string& httpsRequest) {
     return std::async(std::launch::async, [=]() -> std::string {
         static const std::string emptyStr = "";
-        socketIndex sIndex = ClientSocket::connectToServer(proxyHost, proxyPort);
-        if (sIndex == -1) {
-            return emptyStr;
+        constexpr int maxRetries = 3;
+
+        for (int attempt = 0; attempt < maxRetries; ++attempt) {
+            socketIndex sIndex = ClientSocket::connectToServer(proxyHost, proxyPort);
+            if (sIndex == -1) {
+                continue;
+            }
+
+            if (!httpProxyConnect(sIndex, targetHost, targetPort)) {
+                ClientSocket::disconnectToServer(sIndex);
+                continue;
+            }
+
+            sslConnect(sIndex, targetHost, targetPort);
+            if (sIndex == -1) {
+                ClientSocket::disconnectToServer(sIndex);
+                continue;
+            }
+
+            if (!ClientSocket::socketSendSSL(sIndex, httpsRequest)) {
+                ClientSocket::disconnectToServer(sIndex);
+                continue;
+            }
+
+            auto resp = ClientSocket::socketReceiveSSL(sIndex);
+
+            if (!resp) {
+                continue;
+            }
+
+            if (resp->getStatusCode() != "200") {
+                continue;
+            }
+
+            ClientSocket::releaseSocket(sIndex);
+            return resp->getPayload();
         }
-
-        if (!httpProxyConnect(sIndex, targetHost, targetPort)) {
-            ClientSocket::disconnectToServer(sIndex);
-            return emptyStr;
-        }
-
-        sslConnect(sIndex, targetHost, targetPort);
-        if (sIndex == -1) {
-            ClientSocket::disconnectToServer(sIndex);
-            return emptyStr;
-        }
-
-        if (!ClientSocket::socketSendSSL(sIndex, httpsRequest)) {
-            ClientSocket::disconnectToServer(sIndex);
-            return emptyStr;
-        }
-
-        auto resp = ClientSocket::socketReceiveSSL(sIndex);
-        ClientSocket::disconnectToServer(sIndex);
-
-        if (!resp) {
-            return emptyStr;
-        }
-
-        return resp->getPayload();
+        return emptyStr;
     });
 }
 

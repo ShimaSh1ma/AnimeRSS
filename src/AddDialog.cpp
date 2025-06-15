@@ -20,7 +20,6 @@ AddDialog::AddDialog(QWidget* parent)
     mainLayout->addLayout(rssLayout);
 
     // Save Path
-    savePathInput->setReadOnly(true);
     QHBoxLayout* savePathLayout = new QHBoxLayout();
     savePathLayout->addWidget(new QLabel("Save Path:", this));
     savePathLayout->addWidget(savePathInput);

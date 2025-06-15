@@ -10,6 +10,7 @@
 #include <QPixmap>
 #include <QResizeEvent>
 #include <QWidget>
+#include <filesystem>
 
 BackImg* BackImg::_instance = nullptr;
 
@@ -32,6 +33,8 @@ BackImg::BackImg(QWidget* parent) : QWidget(parent) {
 }
 
 void BackImg::updateImg(const std::string& path) {
+    if (!std::filesystem::exists(path))
+        return;
     image.load(path.c_str());
     pix = QPixmap::fromImage(image);
     stretchImage();
@@ -50,6 +53,12 @@ void BackImg::fadeIn() {
 
 void BackImg::fadeOut() {
     startFade(imgOpacity, 0.0);
+}
+
+void BackImg::removeImg() {
+    image = QImage();
+    pix = QPixmap();
+    temp = QPixmap();
 }
 
 void BackImg::startFade(qreal from, qreal to) {

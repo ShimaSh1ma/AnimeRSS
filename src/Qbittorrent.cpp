@@ -1,12 +1,13 @@
 #include "Qbittorrent.h"
+#include "SettingConfig.h"
 #include "SocketModule/ClientSocket.h"
 #include "SocketModule/HttpRequest.h"
 #include "SocketModule/HttpResponseParser.h"
 #include <regex>
 
-QBittorrent::QBittorrent() : host("127.0.0.1"), port("8080") {
-    admin = "admin";
-    password = "123456";
+using namespace GlobalConfig;
+
+QBittorrent::QBittorrent() {
     login();
 };
 
@@ -29,14 +30,14 @@ void QBittorrent::post() {
         sl.unlock();
 
         socketIndex index;
-        index = ClientSocket::connectToServer(host, port);
+        index = ClientSocket::connectToServer(config.qbittorrentIP, std::to_string(config.qbittorrentPort));
         if (index == -1) {
             continue;
         }
 
         HttpRequest request;
         std::string body{"urls=" + torrent + (savePath.empty() ? "" : "&savepath=" + savePath)};
-        request.setUrl(host, "/api/v2/torrents/add");
+        request.setUrl(config.qbittorrentIP, "/api/v2/torrents/add");
         request.setHttpMethod("POST");
         request.addHttpHead({{"Host", ""},
                              {"Accept", ""},
@@ -54,6 +55,8 @@ void QBittorrent::post() {
         }
 
         std::unique_ptr<HttpResponseParser> parser = ClientSocket::socketReceive(index);
+        ClientSocket::releaseSocket(index);
+
         if (parser && parser->getStatusCode() == "200") {
             {
                 std::unique_lock ul(queueMutex);
@@ -66,20 +69,19 @@ void QBittorrent::post() {
             while (!login())
                 ;
         }
-        ClientSocket::releaseSocket(index);
     }
 }
 
 bool QBittorrent::login() {
     socketIndex index;
-    index = ClientSocket::connectToServer(host, port);
+    index = ClientSocket::connectToServer(config.qbittorrentIP, std::to_string(config.qbittorrentPort));
     if (index == -1) {
         return false;
     }
 
     HttpRequest request;
-    std::string body{"username=" + this->admin + "&password=" + this->password};
-    request.setUrl(host, "/api/v2/auth/login");
+    std::string body{"username=" + config.qbittorrentUsername + "&password=" + config.qbittorrentPassword};
+    request.setUrl(config.qbittorrentIP, "/api/v2/auth/login");
     request.setHttpMethod("POST");
     request.addHttpHead({{"Host", ""},
                          {"Accept", ""},
@@ -111,9 +113,9 @@ void QBittorrent::postTorrent(const std::string& torrent, const std::string& sav
 
     bool expected = false;
     if (isPosting.compare_exchange_strong(expected, true)) {
-        std::thread([this]() {
+        std::async(std::launch::async, [this]() {
             this->post();
             isPosting.store(false);
-        }).detach();
+        });
     }
 };

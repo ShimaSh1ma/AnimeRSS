@@ -14,6 +14,7 @@ class BackImg : public QWidget {
 
     void updateImg(const std::string& path);
     void cleanImg();
+    void removeImg();
 
     inline qreal getImgOpacity() const {
         return imgOpacity;
