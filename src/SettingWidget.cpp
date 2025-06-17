@@ -85,7 +85,7 @@ class DarkSpinBox : public QSpinBox {
 class TitleLabel : public QLabel {
   public:
     TitleLabel(const QString& text, const QColor& textColor = QColor(255, 255, 255), QWidget* parent = nullptr) : QLabel(text, parent) {
-        setFont(QFont("SF Pro", sizeScale(10), QFont::Bold));
+        setFont(QFont("Noto Sans", sizeScale(10), QFont::Bold));
         setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
         setWordWrap(true);
         setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -102,7 +102,7 @@ class ToggleSwitch : public QCheckBox {
     explicit ToggleSwitch(QWidget* parent = nullptr) : QCheckBox(parent) {
         setFixedSize(sizeScale(48), sizeScale(24));
         setCursor(Qt::PointingHandCursor);
-        setFont(QFont("SF Pro", sizeScale(12)));
+        setFont(QFont("Noto Sans", sizeScale(12)));
         QPalette pal = palette();
         pal.setColor(QPalette::WindowText, QColor(255, 255, 255));
         setPalette(pal);

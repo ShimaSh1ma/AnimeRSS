@@ -86,7 +86,7 @@ void RssItem::initUI() {
     layout->setAlignment(Qt::AlignCenter);
 
     title = new QLabel(this);
-    title->setFont(QFont("SF Pro", sizeScale(16), QFont::Bold));
+    title->setFont(QFont("Noto Sans", sizeScale(16), QFont::Bold));
     title->setAlignment(Qt::AlignCenter);
     title->setWordWrap(true);
     title->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);

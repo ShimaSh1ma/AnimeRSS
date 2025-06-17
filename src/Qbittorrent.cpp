@@ -66,8 +66,7 @@ void QBittorrent::post() {
                 successBlock();
         }
         if (parser && parser->getStatusCode() == "403") {
-            while (!login())
-                ;
+            login();
         }
     }
 }
