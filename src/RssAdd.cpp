@@ -15,6 +15,7 @@ RssAdd::RssAdd(QWidget* parent) : QWidget(parent) {
     setMinimumWidth(_rssItemWidthMin);
     setMaximumWidth(_rssItemWidthMax);
     setFixedHeight(_rssItemHeight);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     initUI();
 }
 

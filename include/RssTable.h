@@ -30,7 +30,7 @@ class RssTable : public QWidget {
     std::vector<std::unique_ptr<QWidget>> rssItems;
 
     QGridLayout* layout;
-    void initUI();
+    void initLayout();
 
     void loadRssDatas();
     void initRssItems();

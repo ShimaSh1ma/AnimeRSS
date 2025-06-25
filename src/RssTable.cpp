@@ -19,7 +19,7 @@ RssTable::RssTable(QWidget* parent) : QWidget(parent) {
 }
 
 void RssTable::init() {
-    initUI();
+    initLayout();
     initRssAdd();
     loadRssDatas();
     initRssItems();
@@ -51,7 +51,7 @@ void RssTable::loadRssDatas() {
     }
 }
 
-void RssTable::initUI() {
+void RssTable::initLayout() {
     layout = new QGridLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setAlignment(Qt::AlignTop);
@@ -153,12 +153,8 @@ void RssTable::caculateColumn() {
 void RssTable::clearLayout() {
     if (!layout)
         return;
-    while (QLayoutItem* item = layout->takeAt(0)) {
-        if (QWidget* widget = item->widget()) {
-            layout->removeWidget(widget);
-        }
-        delete item;
-    }
+    delete layout;
+    initLayout();
 }
 
 void RssTable::adjustLayout() {
