@@ -10,8 +10,6 @@
 #include <functional>
 
 class AddDialog : public QDialog {
-    Q_OBJECT
-
   public:
     explicit AddDialog(QWidget* parent = nullptr);
     ~AddDialog() = default;
@@ -22,7 +20,7 @@ class AddDialog : public QDialog {
     QString getRssUrl() const;
     QString getSavePath() const;
 
-  private slots:
+  private:
     void selectSavePath();
     void validateInput();
 

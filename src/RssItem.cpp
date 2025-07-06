@@ -27,13 +27,12 @@ RssItem::RssItem(std::shared_ptr<RssData> data, std::function<void(RssItem*)> de
     initUI();
     updateContent();
 
-    std::weak_ptr<RssData> weakData = rssData;
     QPointer<RssItem> safeThis = this;
-    data->updateUI = [safeThis, weakData]() {
+    data->updateUI = [safeThis]() {
         if (!safeThis)
             return;
 
-        if (auto sp = weakData.lock()) {
+        if (auto sp = safeThis->rssData.lock()) {
             safeThis->updateContent();
         }
     };
@@ -106,7 +105,8 @@ void RssItem::initUI() {
 
 void RssItem::updateContent() {
     if (QThread::currentThread() != this->thread()) {
-        QMetaObject::invokeMethod(this, "updateContent", Qt::QueuedConnection);
+        QMetaObject::invokeMethod(
+            this, [this] { this->updateContent(); }, Qt::QueuedConnection);
         return;
     }
 
@@ -124,6 +124,7 @@ void RssItem::updateContent() {
 
     if (std::filesystem::exists(utf8_to_utf16(sp->getImage()))) {
         image.load(QString::fromUtf8(sp->getImage().c_str()));
+        image = image.scaled(this->size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
     } else {
         image = QImage(QSize(this->width(), this->height()), QImage::Format_RGB32);
         image.fill(Qt::gray);

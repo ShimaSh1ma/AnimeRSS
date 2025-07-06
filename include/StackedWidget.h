@@ -4,7 +4,6 @@
 #include <QStackedWidget>
 
 class StackedWidget : public QStackedWidget {
-    Q_OBJECT
   public:
     explicit StackedWidget();
     ~StackedWidget() = default;
@@ -23,5 +22,5 @@ class StackedWidget : public QStackedWidget {
     std::unique_ptr<QParallelAnimationGroup> switchAnimeGroup;
     void setWidget();
 
-    size_t index; // 当前页面索引
+    size_t index;
 };

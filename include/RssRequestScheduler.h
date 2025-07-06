@@ -10,10 +10,7 @@ class RssRequestScheduler {
   public:
     using WeakRssPtr = std::weak_ptr<RssData>;
 
-    // 获取单例实例
     static RssRequestScheduler& instance();
-
-    // 添加任务（线程安全）
     void addTask(WeakRssPtr data);
 
   private:

@@ -12,7 +12,6 @@ class QPushButton;
 class IconButton;
 
 class RssItem : public QWidget {
-    Q_OBJECT
   public:
     explicit RssItem(std::shared_ptr<RssData> data, std::function<void(RssItem*)> deleteFunction, QWidget* parent = nullptr);
     ~RssItem() = default;
@@ -24,26 +23,29 @@ class RssItem : public QWidget {
     void leaveEvent(QEvent* event) override;
     void mouseDoubleClickEvent(QMouseEvent* event) override;
 
+  public:
+    void updateContent();
+
   private:
     static void* chosenItem;
-
     bool mouseIn = false;
 
     void initUI();
-    Q_INVOKABLE void updateContent();
-
     void replacePreview();
+
+    void stretchImage();
 
     std::function<void(RssItem*)> deleteFunction;
 
     QLabel* title;
     QImage image;
+    QPixmap originImage;
+
     std::weak_ptr<RssData> rssData;
 
     IconButton* deleteButton;
     IconButton* refreshButton;
     IconButton* previewButton;
-
     QVBoxLayout* layout;
 
     double opacity = _unchosenOpacity;

@@ -155,12 +155,13 @@ void MainWindow::createTrayIcon() {
 
 void MainWindow::closeEvent(QCloseEvent* event) {
     if (trayIcon && trayIcon->isVisible()) {
-        BackImg::Instance()->removeImg();
+        backImg->removeImg();
         hide();
         event->ignore();
     } else {
         event->accept();
         settingWidget->close();
+        backImg->setParent(nullptr);
     }
 }
 
@@ -202,6 +203,7 @@ void MainWindow::initUI() {
 
 void MainWindow::initStackedWidget() {
     stackedWidget = new StackedWidget();
+    // stackedWidget->setParent(this);
     stackedWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 }
 

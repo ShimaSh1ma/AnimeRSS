@@ -16,7 +16,6 @@ class RssTable : public QWidget {
     ~RssTable() = default;
 
   protected:
-    // void paintEvent(QPaintEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
 
   private:
@@ -39,7 +38,7 @@ class RssTable : public QWidget {
 
     void clearLayout();
     void caculateColumn();
-    int column = 0; // 当前列数
+    int column = 0;
     void adjustLayout();
 
     void addRssData(const char* rssUrl, const char* savePath, const char* title);

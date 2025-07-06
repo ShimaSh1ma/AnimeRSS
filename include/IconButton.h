@@ -6,7 +6,6 @@ class QIcon;
 class QColor;
 
 class IconButton : public QPushButton {
-    Q_OBJECT
 
   public:
     explicit IconButton(QWidget* parent = nullptr);

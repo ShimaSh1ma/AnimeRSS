@@ -20,7 +20,7 @@ class QBittorrent {
     void post();
 
   public:
-    static QBittorrent& Instance() {
+    inline static QBittorrent& Instance() {
         static QBittorrent instance;
         return instance;
     }

@@ -8,8 +8,6 @@ class QHBoxLayout;
 class IconButton;
 
 class TitleBar : public QWidget {
-    Q_OBJECT
-
   public:
     explicit TitleBar(QWidget* parent = nullptr);
     ~TitleBar() = default;

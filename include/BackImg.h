@@ -29,6 +29,7 @@ class BackImg : public QWidget {
     void resizeEvent(QResizeEvent* event) override;
 
   private:
+    Q_PROPERTY(qreal imgOpacity READ getImgOpacity WRITE setImgOpacity)
     explicit BackImg(QWidget* parent = nullptr);
     static BackImg* _instance;
 
@@ -51,6 +52,5 @@ class BackImg : public QWidget {
     int xpos = 0;
     int ypos = 0;
 
-    Q_PROPERTY(qreal imgOpacity READ getImgOpacity WRITE setImgOpacity)
     qreal imgOpacity = opacity;
 };

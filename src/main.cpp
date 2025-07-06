@@ -7,7 +7,7 @@
 #include <filesystem>
 
 int main(int argc, char* argv[]) {
-    // 设置exe路径，保证开启启动时读取配置
+    // 设置exe路径，保证开机启动时读取配置
     {
         wchar_t path[MAX_PATH] = {0};
         GetModuleFileNameW(nullptr, path, MAX_PATH);

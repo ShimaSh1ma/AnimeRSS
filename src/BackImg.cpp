@@ -37,6 +37,7 @@ void BackImg::updateImg(const std::string& path) {
         return;
     image.load(QString::fromUtf8(path.c_str()));
     pix = QPixmap::fromImage(image);
+    image = QImage();
     stretchImage();
     update();
     fadeIn();
