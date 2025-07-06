@@ -33,21 +33,32 @@ void RssTable::loadRssDatas() {
         return;
     }
 
+    std::vector<std::pair<fs::path, long long>> files;
     for (const auto& entry : fs::directory_iterator(rssDir)) {
-        if (entry.is_regular_file()) {
-            const auto& path = entry.path();
-            if (path.extension() == ".json") {
-                std::ifstream inFile(path);
-                if (!inFile) {
-                    continue;
+        if (entry.is_regular_file() && entry.path().extension() == ".json") {
+            std::string filename = entry.path().stem().string();
+            auto pos = filename.rfind('_');
+            if (pos != std::string::npos) {
+                std::string ts = filename.substr(pos + 1);
+                try {
+                    long long timestamp = std::stoll(ts);
+                    files.emplace_back(entry.path(), timestamp);
+                } catch (...) {
                 }
-
-                std::string content((std::istreambuf_iterator<char>(inFile)), std::istreambuf_iterator<char>());
-                auto rssData = std::make_unique<RssData>();
-                rssData->loadFromJson(content);
-                rssList.push_back(std::move(rssData));
             }
         }
+    }
+
+    std::sort(files.begin(), files.end(), [](const auto& a, const auto& b) { return a.second < b.second; });
+
+    for (const auto& [path, _] : files) {
+        std::ifstream inFile(path);
+        if (!inFile)
+            continue;
+        std::string content((std::istreambuf_iterator<char>(inFile)), std::istreambuf_iterator<char>());
+        auto rssData = std::make_unique<RssData>();
+        rssData->loadFromJson(content);
+        rssList.push_back(std::move(rssData));
     }
 }
 
