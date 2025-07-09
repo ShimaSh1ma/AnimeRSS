@@ -1,5 +1,6 @@
 #include "RssRequestScheduler.h"
 #include "RssData.h"
+#include "RssDataFunc.h"
 
 RssRequestScheduler& RssRequestScheduler::instance() {
     static RssRequestScheduler scheduler;
@@ -34,7 +35,7 @@ void RssRequestScheduler::tryRunNext() {
             };
 
             running = true;
-            shared->requestRss();
+            RssDataFunc::requestRss(shared);
             return;
         }
     }

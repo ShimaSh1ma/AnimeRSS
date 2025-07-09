@@ -5,6 +5,10 @@ AddDialog::AddDialog(QWidget* parent)
     : QDialog(parent), titleInput(new QLineEdit(this)), rssUrlInput(new QLineEdit(this)), savePathInput(new QLineEdit(this)),
       browseButton(new QPushButton("Browse", this)), addButton(new QPushButton("Add", this)), cancelButton(new QPushButton("Cancel", this)) {
 
+    setWindowModality(Qt::NonModal);
+    setWindowFlags(windowFlags() | Qt::WindowStaysOnTopHint | Qt::Tool);
+    setAttribute(Qt::WA_DeleteOnClose, true);
+
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
 
     // Title

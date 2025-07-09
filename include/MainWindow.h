@@ -23,6 +23,7 @@ class MainWindow : public QWidget {
     void resizeEvent(QResizeEvent* event) override;
     void paintEvent(QPaintEvent* event) override;
     void closeEvent(QCloseEvent* event) override;
+    void showEvent(QShowEvent* event) override;
 
   private:
     StackedWidget* stackedWidget;

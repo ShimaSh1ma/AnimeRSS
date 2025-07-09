@@ -10,6 +10,7 @@ class MSocket;
 class HttpResponseParser;
 
 using socketIndex = int;
+using CallBack = std::function<void(const std::string& response)>;
 
 // 初始化WSA环境
 void WSAInit();
@@ -63,8 +64,8 @@ class ClientSocket {
     static void disconnectToServer(socketIndex& index);
 
     // 异步请求
-    static std::future<std::string> asyncRequest(const std::string& request, const std::string& host, const std::string& port);
+    static void asyncRequest(const std::string& host, const std::string& port, std::string request, CallBack callBack = nullptr);
 
-    static std::future<std::string> asyncRequestProxy(const std::string& proxyHost, const std::string& proxyPort, const std::string& targetHost,
-                                                      const std::string& targetPort, const std::string& httpsRequest);
+    static void asyncRequestProxy(const std::string& proxyHost, const std::string& proxyPort, const std::string& targetHost, const std::string& targetPort,
+                                  std::string httpsRequest, CallBack callBack = nullptr);
 };

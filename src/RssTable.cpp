@@ -3,6 +3,7 @@
 #include "Constant.h"
 #include "RssAdd.h"
 #include "RssData.h"
+#include "RssDataFunc.h"
 #include "RssItem.h"
 #include "RssRequestScheduler.h"
 #include <QDebug>
@@ -65,6 +66,8 @@ void RssTable::loadRssDatas() {
 void RssTable::initLayout() {
     layout = new QGridLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
+    layout->setHorizontalSpacing(sizeScale(32));
+    layout->setVerticalSpacing(sizeScale(20));
     layout->setAlignment(Qt::AlignTop);
     setLayout(layout);
 }
@@ -92,10 +95,13 @@ void RssTable::requestAllRss() {
 }
 
 void RssTable::openRssAddDialog() {
-    AddDialog* addDialog = new AddDialog(this);
+    if (addDialog != nullptr) {
+        return;
+    }
+    addDialog = new AddDialog();
+    connect(addDialog, &QObject::destroyed, this, [this]() { addDialog = nullptr; });
     addDialog->onAddClicked = [this](const char* rssUrl, const char* savePath, const char* title) { addRssData(rssUrl, savePath, title); };
-    addDialog->setAttribute(Qt::WA_DeleteOnClose, true);
-    addDialog->exec();
+    addDialog->show();
 }
 
 void RssTable::addRssData(const char* rssUrl, const char* savePath, const char* title) {
@@ -125,17 +131,14 @@ void RssTable::deleteRssData(const RssItem* item) {
 
     for (size_t i = 0; i < rssItems.size(); ++i) {
         if (rssItems[i].get() == item) {
-            // 从布局中移除该 widget
             layout->removeWidget(rssItems[i].get());
             rssItems[i]->setParent(nullptr);
             rssItems.erase(rssItems.begin() + i);
             adjustLayout();
 
-            std::thread([this, i]() {
-                std::unique_lock lock(rssListMutex);
-                rssList[i - 1]->deleteData();
-                rssList.erase(rssList.begin() + i - 1);
-            }).detach();
+            std::unique_lock lock(rssListMutex);
+            rssList[i - 1]->deleteData();
+            rssList.erase(rssList.begin() + i - 1);
             break;
         }
     }

@@ -5,6 +5,7 @@
 #include "SettingWidget.h"
 #include "StackedWidget.h"
 #include "TitleBar.h"
+#include < QSettings>
 #include <QAction>
 #include <QApplication>
 #include <QDebug>
@@ -134,7 +135,7 @@ void MainWindow::createTrayIcon() {
     QMenu* trayMenu = new QMenu(this);
 
     QAction* restoreAction = new QAction("Show", this);
-    connect(restoreAction, &QAction::triggered, this, &MainWindow::showNormal);
+    connect(restoreAction, &QAction::triggered, this, [this]() { this->show(); });
 
     QAction* quitAction = new QAction("Close", this);
     connect(quitAction, &QAction::triggered, qApp, &QCoreApplication::quit);
@@ -146,15 +147,31 @@ void MainWindow::createTrayIcon() {
     trayIcon->setContextMenu(trayMenu);
     connect(trayIcon, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason reason) {
         if (reason == QSystemTrayIcon::Trigger) {
-            this->showNormal();
+            this->show();
             this->activateWindow();
         }
     });
     trayIcon->show();
 }
 
+void MainWindow::showEvent(QShowEvent* event) {
+    QWidget::showEvent(event);
+
+    static bool restored = false;
+    if (!restored) {
+        QSettings settings("shimaShima", "AnimeRSS");
+        QByteArray geometry = settings.value("mainWindow/geometry").toByteArray();
+        if (!geometry.isEmpty()) {
+            restoreGeometry(geometry);
+        }
+        restored = true;
+    }
+}
+
 void MainWindow::closeEvent(QCloseEvent* event) {
     if (trayIcon && trayIcon->isVisible()) {
+        QSettings settings("shimaShima", "AnimeRSS");
+        settings.setValue("mainWindow/geometry", saveGeometry());
         backImg->removeImg();
         hide();
         event->ignore();

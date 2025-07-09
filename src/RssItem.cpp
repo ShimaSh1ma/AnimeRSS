@@ -3,6 +3,7 @@
 #include "Constant.h"
 #include "IconButton.h"
 #include "RssData.h"
+#include "RssDataFunc.h"
 
 #include <QDebug>
 #include <QDesktopServices>
@@ -66,7 +67,7 @@ void RssItem::initUI() {
 
     connect(refreshButton, &QPushButton::clicked, [this]() {
         if (auto sp = rssData.lock()) {
-            sp->requestRss();
+            RssDataFunc::requestRss(sp);
         }
     });
 

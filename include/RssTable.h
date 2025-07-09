@@ -9,6 +9,7 @@
 class QGridLayout;
 class RssData;
 class RssItem;
+class AddDialog;
 
 class RssTable : public QWidget {
   public:
@@ -27,6 +28,7 @@ class RssTable : public QWidget {
     std::shared_mutex rssListMutex;
 
     std::vector<std::unique_ptr<QWidget>> rssItems;
+    AddDialog* addDialog = nullptr;
 
     QGridLayout* layout;
     void initLayout();

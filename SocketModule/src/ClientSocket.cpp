@@ -11,11 +11,94 @@
 #include "UrlParser.h"
 
 #include <array>
+#include <condition_variable>
 #include <cstring>
+#include <functional>
+#include <future>
+#include <iostream>
 #include <limits>
+#include <mutex>
+#include <queue>
 #include <random>
+#include <stop_token>
+#include <vector>
 
 #include <shared_mutex>
+
+#include <iostream>
+
+class JThreadPool {
+  public:
+    explicit JThreadPool(size_t threadCount = std::thread::hardware_concurrency()) : stopFlag(false) {
+        for (size_t i = 0; i < threadCount; ++i) {
+            workers.emplace_back([this](std::stop_token stoken) { workerLoop(stoken); });
+        }
+    }
+
+    ~JThreadPool() {
+        {
+            std::unique_lock lock(queueMutex);
+            stopFlag = true;
+        }
+        condition.notify_all();
+    }
+
+    template <typename Func, typename... Args> auto submit(Func&& func, Args&&... args) -> std::future<typename std::invoke_result_t<Func, Args...>> {
+        using ReturnType = typename std::invoke_result_t<Func, Args...>;
+
+        auto taskPtr = std::make_shared<std::packaged_task<ReturnType()>>(std::bind(std::forward<Func>(func), std::forward<Args>(args)...));
+
+        std::future<ReturnType> resultFuture = taskPtr->get_future();
+
+        {
+            std::unique_lock lock(queueMutex);
+            if (stopFlag)
+                throw std::runtime_error("ThreadPool stopped, can't submit task");
+
+            tasks.emplace([taskPtr]() {
+                try {
+                    (*taskPtr)();
+                } catch (const std::exception& e) {
+                    std::cerr << "Task exception: " << e.what() << std::endl;
+                    throw;
+                }
+            });
+        }
+
+        condition.notify_one();
+        return resultFuture;
+    }
+
+  private:
+    void workerLoop(std::stop_token stoken) {
+        while (!stoken.stop_requested()) {
+            std::function<void()> task;
+
+            {
+                std::unique_lock lock(queueMutex);
+                condition.wait(lock, [this, &stoken] { return stopFlag || !tasks.empty() || stoken.stop_requested(); });
+
+                if ((stopFlag || stoken.stop_requested()) && tasks.empty())
+                    return;
+
+                task = std::move(tasks.front());
+                tasks.pop();
+            }
+
+            try {
+                task();
+            } catch (...) {
+            }
+        }
+    }
+
+    std::vector<std::jthread> workers;
+    std::queue<std::function<void()>> tasks;
+
+    std::mutex queueMutex;
+    std::condition_variable condition;
+    bool stopFlag;
+};
 
 // 调用select函数传入的判断类型
 enum class selectType
@@ -603,7 +686,6 @@ bool ClientSocket::httpProxyConnect(socketIndex& sIndex, const std::string& targ
         return false;
     }
 
-    // 简单判断响应状态码是否200
     if (resp->getStatusCode() == "200") {
         return true;
     }
@@ -612,12 +694,11 @@ bool ClientSocket::httpProxyConnect(socketIndex& sIndex, const std::string& targ
     return false;
 }
 
-std::future<std::string> ClientSocket::asyncRequestProxy(const std::string& proxyHost, const std::string& proxyPort, const std::string& targetHost,
-                                                         const std::string& targetPort, const std::string& httpsRequest) {
-    return std::async(std::launch::async, [=]() -> std::string {
-        static const std::string emptyStr = "";
+void ClientSocket::asyncRequestProxy(const std::string& proxyHost, const std::string& proxyPort, const std::string& targetHost, const std::string& targetPort,
+                                     std::string httpsRequest, CallBack callBack) {
+    static JThreadPool threadPool(3);
+    threadPool.submit([proxyHost, proxyPort, targetHost, targetPort, request = std::move(httpsRequest), cb = std::move(callBack)]() {
         constexpr int maxRetries = 3;
-
         for (int attempt = 0; attempt < maxRetries; ++attempt) {
             socketIndex sIndex = ClientSocket::connectToServer(proxyHost, proxyPort);
             if (sIndex == -1) {
@@ -635,7 +716,7 @@ std::future<std::string> ClientSocket::asyncRequestProxy(const std::string& prox
                 continue;
             }
 
-            if (!ClientSocket::socketSendSSL(sIndex, httpsRequest)) {
+            if (!ClientSocket::socketSendSSL(sIndex, request)) {
                 ClientSocket::disconnectToServer(sIndex);
                 continue;
             }
@@ -651,19 +732,22 @@ std::future<std::string> ClientSocket::asyncRequestProxy(const std::string& prox
             }
 
             ClientSocket::releaseSocket(sIndex);
-            return resp->getPayload();
+            if (cb) {
+                cb(resp->getPayload());
+            }
+            return;
         }
-        return emptyStr;
     });
 }
 
-std::future<std::string> ClientSocket::asyncRequest(const std::string& request, const std::string& host, const std::string& port) {
-    return std::async(std::launch::async, [=]() -> std::string {
-        static const std::string emptyStr = "";
-        std::string respCode = emptyStr;
+void ClientSocket::asyncRequest(const std::string& host, const std::string& port, std::string request, CallBack callBack) {
+    static JThreadPool threadPool(3);
+    threadPool.submit([=]() {
+        std::string respCode;
         socketIndex sIndex = -1;
         int retryTimes = 3;
         while (respCode != "200" && retryTimes > 0) {
+            --retryTimes;
             if (sIndex == -1) {
                 sIndex = ClientSocket::connectToServerSSL(host, port);
                 if (sIndex != -1) {
@@ -674,14 +758,14 @@ std::future<std::string> ClientSocket::asyncRequest(const std::string& request, 
                         }
                         respCode = resp->getStatusCode();
                         if (respCode == "200") {
-                            return resp->getPayload();
+                            if (callBack) {
+                                callBack(resp->getPayload());
+                            }
                         }
                     }
                 }
             }
             ClientSocket::releaseSocket(sIndex);
-            --retryTimes;
         }
-        return emptyStr;
     });
 }

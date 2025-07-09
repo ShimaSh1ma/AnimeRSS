@@ -27,13 +27,13 @@ struct RssBody {
     std::string imageUrl;
     std::string imagePath;
 
-    std::string lastUpdata;
+    std::string lastUpdate;
     std::string lastRead;
 
     std::string timeStamp;
 };
 
-class RssData : public std::enable_shared_from_this<RssData> {
+class RssData {
   public:
     RssData() = default;
     RssData(const char* url, const char* savePath, const char* title);
@@ -47,50 +47,32 @@ class RssData : public std::enable_shared_from_this<RssData> {
     std::function<void()> updateUI;
     std::function<void()> callScheduler;
 
-    void requestRss();
-
     std::string getTitle();
     std::string getImage();
     std::string getUrl();
     std::string getSavePath();
 
-    void setImage(const std::string& path);
-
     void setRead();
-
     bool getRead();
 
-    void loadFromJson(const std::string& _json);
+    void setImage(const std::string& path);
 
+    void saveAsJson();
+    void loadFromJson(const std::string& _json);
     void deleteData();
 
   private:
+    std::string jsonPath;
+    RssBody body;
+
     std::atomic_bool isRequesting = false;
     std::atomic_bool isImageRequesting = false;
     std::atomic_bool isDeleted = false;
 
     bool isRead = false;
 
-    std::string jsonPath;
-
-    RssBody body;
-
-    std::future<std::string> rssFuture;
-    std::future<std::string> imageFuture;
-
-    // 检查是否有更新
-    void checkUpdate();
-    // 保存为json
-    void saveAsJson();
-    // 解析rss
-    void parseRss();
-    // 解析封面图
-    void parseImageUrl();
-    // 请求封面图
-    void requestImage();
-    // 推送到torrent下载器
-    void postTorrent();
-
     void setTimeStamp();
     std::string getTimeStamp();
+
+    friend class RssDataFunc;
 };
